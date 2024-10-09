@@ -1,9 +1,9 @@
 # Core
 
-# Scripts
+### Scripts
 
 ```json
-yarn run ...
+// yarn run <...>
 
 "compile": "npx hardhat compile",
 "test": "npx hardhat test",
@@ -11,6 +11,8 @@ yarn run ...
 "publish": "npm publish --access public",
 "wallet:info": "npx ts-node helper/WalletInfo.ts"
 ```
+
+# Deployment
 
 ### Deploy Contract
 
@@ -26,4 +28,28 @@ npx hardhat ignition deploy ./ignition/modules/$MODULE.ts --network polygon --de
 
 ```bash
 npx hardhat verify --network polygon --constructor-args ./ignition/constructor-args/$FILE.js $ADDRESS
+```
+
+# NPM and packages
+
+### @dev: what you fill find & how to publish
+
+To publish new version. `publish: "npm publish --access public"`
+
+-   [x] Exports ready to use TS ABIs
+-   [x] Exports ready to use TS Address config
+-   [ ]
+
+### @dev: how to transpile package into bundled apps
+
+E.g. for `NextJs` using the `next.config.js` in root of project.
+
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+	reactStrictMode: true,
+	transpilePackages: ['@wrtylabs/core', '@wrytelabs/api'],
+};
+
+module.exports = nextConfig;
 ```
