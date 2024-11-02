@@ -5,11 +5,14 @@
 ```json
 // yarn run <...>
 
+"wallet:info": "npx ts-node helper/WalletInfo.ts",
+
 "compile": "npx hardhat compile",
-"test": "npx hardhat test",
-"coverage": "npx hardhat coverage",
+"build": "tsup",
 "publish": "npm publish --access public",
-"wallet:info": "npx ts-node helper/WalletInfo.ts"
+
+"test": "npx hardhat test",
+"coverage": "npx hardhat coverage"
 ```
 
 # Deployment

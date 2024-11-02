@@ -1,9 +1,11 @@
 {
-	"name": "@wrytlabs/core",
+	"name": "@wrytlabs/core-template",
 	"version": "0.0.1",
 	"private": false,
 	"license": "MIT",
-	"main": "index.ts",
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
 	"author": "samclassix <samclassix@proton.me>, wrytlabs <wrytlabs@proton.me>",
 	"description": "Core implementation",
 	"directories": {
@@ -11,12 +13,12 @@
 		"test": "tests"
 	},
 	"scripts": {
+		"wallet:info": "npx ts-node helper/WalletInfo.ts",
 		"compile": "npx hardhat compile",
-		"test": "npx hardhat test",
-		"coverage": "npx hardhat coverage",
 		"build": "tsup",
 		"publish": "npm publish --access public",
-		"wallet:info": "npx ts-node helper/WalletInfo.ts"
+		"test": "npx hardhat test",
+		"coverage": "npx hardhat coverage"
 	},
 	"repository": {
 		"type": "git",

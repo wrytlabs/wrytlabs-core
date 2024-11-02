@@ -11,7 +11,7 @@ export interface ChainAddress {
 
 export const ADDRESS: Record<number, ChainAddress> = {
 	// [polygon.id]: {
-	// 	asdf: 'asdf',
-	// 	aaaa: 'asdf',
+	// 	asdf: '0xasdf',
+	// 	aaaa: '0xasdf',
 	// },
 };

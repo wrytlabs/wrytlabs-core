@@ -18,7 +18,7 @@ const w0 = getChildFromSeed(seed, 0); // deployer
 
 const config: HardhatUserConfig = {
 	solidity: {
-		version: '0.8.24',
+		version: '0.8.20',
 		settings: {
 			optimizer: {
 				enabled: true,
@@ -67,7 +67,7 @@ const config: HardhatUserConfig = {
 			path: './abi',
 			clear: true,
 			runOnCompile: true,
-			flat: true,
+			flat: false,
 			spacing: 4,
 			pretty: false,
 		},
@@ -75,7 +75,7 @@ const config: HardhatUserConfig = {
 			path: './abi/signature',
 			clear: true,
 			runOnCompile: true,
-			flat: true,
+			flat: false,
 			spacing: 4,
 			pretty: true,
 		},
