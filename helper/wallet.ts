@@ -1,5 +1,9 @@
 import { ethers } from 'ethers';
 
+export function generateSeed() {
+	return ethers.Wallet.createRandom();
+}
+
 export function getChildFromSeed(seed: string, index: number) {
 	return ethers.Wallet.fromPhrase(seed).deriveChild(index);
 }
