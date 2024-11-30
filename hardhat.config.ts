@@ -21,7 +21,7 @@ const seed = process.env.DEPLOYER_SEED;
 if (!seed) throw new Error('Failed to import the seed string from .env');
 const wallet = getChildFromSeed(seed, start); // deployer
 console.log('### Deployer Wallet ###');
-console.log(wallet);
+console.log(wallet.address, `index: `, wallet.index);
 
 const alchemy = process.env.ALCHEMY_RPC_KEY;
 if (alchemy?.length == 0 || !alchemy) console.log('WARN: No Alchemy Key found in .env');
