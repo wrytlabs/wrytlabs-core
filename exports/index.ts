@@ -4,10 +4,9 @@ export * from './address.config';
 
 // abi exports
 export * from './abis/AccessControl';
+export * from './abis/BackendWallet';
+export * from './abis/IAccessControl';
 export * from './abis/Membership';
-export * from './abis/Ownable';
-export * from './abis/Storage';
 
-// constructor args
-// FIXME: move to export and in TS
-// export * from './ignition/constructor-args/index';
+// deployment params
+export * as BackendWalletParams from '../ignition/params/BackendWallet';
