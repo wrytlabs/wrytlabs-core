@@ -1,4 +1,4 @@
-export const AccessControlABI = [
+export const IAccessControlABI = [
 	{
 		inputs: [],
 		name: 'AccessControlBadConfirmation',
@@ -96,19 +96,6 @@ export const AccessControlABI = [
 		type: 'event',
 	},
 	{
-		inputs: [],
-		name: 'DEFAULT_ADMIN_ROLE',
-		outputs: [
-			{
-				internalType: 'bytes32',
-				name: '',
-				type: 'bytes32',
-			},
-		],
-		stateMutability: 'view',
-		type: 'function',
-	},
-	{
 		inputs: [
 			{
 				internalType: 'bytes32',
@@ -203,25 +190,6 @@ export const AccessControlABI = [
 		name: 'revokeRole',
 		outputs: [],
 		stateMutability: 'nonpayable',
-		type: 'function',
-	},
-	{
-		inputs: [
-			{
-				internalType: 'bytes4',
-				name: 'interfaceId',
-				type: 'bytes4',
-			},
-		],
-		name: 'supportsInterface',
-		outputs: [
-			{
-				internalType: 'bool',
-				name: '',
-				type: 'bool',
-			},
-		],
-		stateMutability: 'view',
 		type: 'function',
 	},
 ] as const;
