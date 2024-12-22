@@ -5,19 +5,19 @@ export function generateSeed() {
 }
 
 export function getChildFromSeed(seed: string, index: number) {
-	return ethers.Wallet.fromPhrase(seed).deriveChild(index);
+	return ethers.HDNodeWallet.fromPhrase(seed, undefined, `m/44'/60'/0'/0/${index}`);
 }
 
 export function getAddressFromChildIndex(seed: string, index: number): string {
-	return ethers.Wallet.fromPhrase(seed).deriveChild(index).address;
+	return getChildFromSeed(seed, index).address;
 }
 
 export function getPublicKeyFromChildIndex(seed: string, index: number): string {
-	return ethers.Wallet.fromPhrase(seed).deriveChild(index).publicKey;
+	return getChildFromSeed(seed, index).publicKey;
 }
 
 export function getPrivateKeyFromChildIndex(seed: string, index: number): string {
-	return ethers.Wallet.fromPhrase(seed).deriveChild(index).privateKey;
+	return getChildFromSeed(seed, index).privateKey;
 }
 
 export function getWalletInto(
