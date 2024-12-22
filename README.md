@@ -135,7 +135,7 @@ Contract contracts/Storage.sol:Storage already verified on network polygon:
 
 ### 5.2 Manual Verify
 
-`npx hardhat verify --network polygon --constructor-args ./ignition/constructor-args/$FILE.js $ADDRESS`
+`npx hardhat verify --network polygon --contract contracts/Example.sol:ExampleContract --constructor-args ./ignition/constructor-args/$FILE.js $ADDRESS`
 
 or manually include unrelated contracts
 
