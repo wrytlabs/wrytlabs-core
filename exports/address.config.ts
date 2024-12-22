@@ -16,3 +16,12 @@ export const ADDRESS: Record<number, ChainAddress> = {
 		membershipFactory: '0xf36A13a48f1Fa4932521Ab0309eF8191E5F4D9EA',
 	},
 };
+
+export const START = {
+	[mainnet.id]: {
+		membership: 0,
+	},
+	[polygon.id]: {
+		membership: 65794269,
+	},
+};
