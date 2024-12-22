@@ -1,5 +1,18 @@
 export const MembershipFactoryABI = [
 	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: 'address',
+				name: 'membership',
+				type: 'address',
+			},
+		],
+		name: 'Created',
+		type: 'event',
+	},
+	{
 		inputs: [
 			{
 				internalType: 'address',

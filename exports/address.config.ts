@@ -13,6 +13,6 @@ export const ADDRESS: Record<number, ChainAddress> = {
 	},
 	[polygon.id]: {
 		backendWallet: '0xAbc09B2e5729a0B16143811646e390eeC7036554',
-		membershipFactory: '0xE63cE0f42DCA7ee1B1A1c1fd481F40d03E69D232',
+		membershipFactory: '0xf36A13a48f1Fa4932521Ab0309eF8191E5F4D9EA',
 	},
 };

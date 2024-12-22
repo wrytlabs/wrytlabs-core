@@ -5,8 +5,12 @@ import {AccessControl} from '@openzeppelin/contracts/access/AccessControl.sol';
 import {IMembership} from './interfaces/IMembership.sol';
 
 contract MembershipFactory {
+	event Created(address membership);
+
 	function createMembership(address admin, address executor, address member) external returns (address) {
-		return address(new Membership(admin, executor, member));
+		address membership = address(new Membership(admin, executor, member));
+		emit Created(membership);
+		return membership;
 	}
 }
 
