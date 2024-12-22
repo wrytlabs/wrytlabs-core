@@ -1,6 +1,6 @@
 {
-	"name": "@wrytlabs/manager-core",
-	"version": "0.0.3",
+	"name": "@wrytlabs/bidder-core",
+	"version": "0.0.1",
 	"private": false,
 	"license": "MIT",
 	"main": "./dist/index.js",
