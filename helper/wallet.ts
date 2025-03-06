@@ -22,7 +22,7 @@ export function getWalletInto(
 	amount: number = 3
 ) {
 	if (!seed) throw new Error('Failed to import the seed string from .env');
-	if (!index) throw new Error('Failed to import the seed string from .env');
+	if (!index) throw new Error('Failed to import the index string from .env');
 	console.log('seed:', seed);
 
 	const start = index && index?.length > 0 ? parseInt(index) : 0;
