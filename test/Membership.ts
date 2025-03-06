@@ -10,82 +10,38 @@ describe('Membership', function () {
 	let member: SignerWithAddress;
 	let nonMember: SignerWithAddress;
 
+	let roleAdmin: string;
+	let roleExecutor: string;
+	let roleMember: string;
+
 	beforeEach(async function () {
 		[admin, executor, member, nonMember] = await ethers.getSigners();
 
 		const Membership = await ethers.getContractFactory('Membership');
 		membership = await Membership.deploy(admin.address, executor.address, member.address);
+
+		roleAdmin = await membership.ADMIN_ROLE();
+		roleExecutor = await membership.EXECUTOR_ROLE();
+		roleMember = await membership.MEMBER_ROLE();
 	});
 
 	describe('Role Checks', function () {
 		it('Should correctly assign admin role', async function () {
-			expect(await membership.checkAdmin(admin.address)).to.be.true;
-			expect(await membership.checkAdmin(executor.address)).to.be.false;
+			expect(await membership.hasRole(roleAdmin, admin.address)).to.equal(true); // Admin level
+			expect(await membership.hasRole(roleAdmin, executor.address)).to.equal(false); // Not admin
 		});
 
 		it('Should correctly assign executor role', async function () {
-			expect(await membership.checkExecutor(executor.address)).to.be.true;
-			expect(await membership.checkExecutor(admin.address)).to.be.true;
-			expect(await membership.checkExecutor(member.address)).to.be.false;
+			expect(await membership.hasRole(roleExecutor, executor.address)).to.equal(true); // Executor level
+			expect(await membership.hasRole(roleExecutor, admin.address)).to.equal(true); // Admin includes executor
+			expect(await membership.hasRole(roleExecutor, member.address)).to.equal(false); // Not executor
 		});
 
 		it('Should correctly assign member role', async function () {
-			expect(await membership.checkMember(member.address)).to.be.true;
-			expect(await membership.checkMember(executor.address)).to.be.true;
-			expect(await membership.checkMember(admin.address)).to.be.true;
-			expect(await membership.checkMember(nonMember.address)).to.be.false;
-		});
-	});
-
-	describe('Hierarchical Checks', function () {
-		it('Should verify atLeastMember correctly', async function () {
-			expect(await membership.checkAtLeastMember(admin.address)).to.be.true;
-			expect(await membership.checkAtLeastMember(executor.address)).to.be.true;
-			expect(await membership.checkAtLeastMember(member.address)).to.be.true;
-			expect(await membership.checkAtLeastMember(nonMember.address)).to.be.false;
-		});
-
-		it('Should verify atLeastExecutor correctly', async function () {
-			expect(await membership.checkAtLeastExecutor(admin.address)).to.be.true;
-			expect(await membership.checkAtLeastExecutor(executor.address)).to.be.true;
-			expect(await membership.checkAtLeastExecutor(member.address)).to.be.false;
-		});
-	});
-
-	describe('Verification Functions', function () {
-		it('Should revert for non-members', async function () {
-			await expect(membership.verifyMember(nonMember.address)).to.be.revertedWithCustomError(
-				membership,
-				'NotMember'
-			);
-		});
-
-		it('Should revert for non-executors', async function () {
-			await expect(membership.verifyExecutor(member.address)).to.be.revertedWithCustomError(
-				membership,
-				'NotExecutor'
-			);
-		});
-
-		it('Should revert for non-admins', async function () {
-			await expect(membership.verifyAdmin(executor.address)).to.be.revertedWithCustomError(
-				membership,
-				'NotAdmin'
-			);
-		});
-
-		it('Should revert for addresses below member level', async function () {
-			await expect(membership.verifyAtLeastMember(nonMember.address)).to.be.revertedWithCustomError(
-				membership,
-				'NotAtLeastMember'
-			);
-		});
-
-		it('Should revert for addresses below executor level', async function () {
-			await expect(membership.verifyAtLeastExecutor(member.address)).to.be.revertedWithCustomError(
-				membership,
-				'NotAtLeastExecutor'
-			);
+			expect(await membership.hasRole(roleMember, member.address)).to.equal(true); // Member level
+			expect(await membership.hasRole(roleMember, executor.address)).to.equal(true); // Executor includes member
+			expect(await membership.hasRole(roleMember, admin.address)).to.equal(true); // Admin includes member
+			expect(await membership.hasRole(roleMember, nonMember.address)).to.equal(false); // No role
 		});
 	});
 });
