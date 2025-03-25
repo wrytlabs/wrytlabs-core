@@ -49,6 +49,7 @@ const config: HardhatUserConfig = {
 			chainId: 1,
 			gas: 'auto',
 			gasPrice: 'auto',
+			gasMultiplier: 0.8,
 			accounts: [wallet.privateKey],
 			timeout: 50_000,
 		},
