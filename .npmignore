@@ -1,10 +1,10 @@
+.DS_Store
+
 abi/
+ignition/
 
 artifacts
 artifacts*/
-/contracts/**/artifacts
-/ignition/**/artifacts
-/ignition/**/build-info
 
 cache
 contracts
