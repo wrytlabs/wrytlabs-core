@@ -1,15 +1,13 @@
-// chain addresses and helpers
+// helpers
 export * from '../helper/wallet';
+
+// address config and types
 export * from './address.config';
+export * from './address.types';
 
 // abi exports
 export * from './abis/AccessControl';
 export * from './abis/IAccessControl';
-export * from './abis/ERC165';
-export * from './abis/IERC165';
-export * from './abis/Membership';
-export * from './abis/IMembership';
-export * from './abis/MembershipFactory';
 export * from './abis/Ownable';
 
 // deployment params
