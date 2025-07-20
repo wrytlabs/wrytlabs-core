@@ -47,17 +47,17 @@ interface ISavings {
 
 	function save(address owner, uint192 amount) external;
 
-	function save(uint192 amount, address referrer, uint24 referralFeePPM) public;
+	function save(uint192 amount, address referrer, uint24 referralFeePPM) external;
 
 	function withdraw(address target, uint192 amount) external returns (uint256);
 
-	function withdraw(uint192 amount, address referrer, uint24 referralFeePPM) public;
+	function withdraw(uint192 amount, address referrer, uint24 referralFeePPM) external;
 
 	function adjust(uint192 targetAmount) external;
 
-	function adjust(uint192 targetAmount, address referrer, uint24 referralFeePPM) public;
+	function adjust(uint192 targetAmount, address referrer, uint24 referralFeePPM) external;
 
-	function dropReferrer() public;
+	function dropReferrer() external;
 
 	function refreshMyBalance() external returns (uint192);
 
