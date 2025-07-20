@@ -7,6 +7,21 @@ import {ERC4626, ERC20, IERC20} from '@openzeppelin/contracts/token/ERC20/extens
 
 import {ISavings} from './helpers/ISavings.sol';
 
+/**
+ * @title SavingsVault
+ * @notice ERC-4626-compatible vault adapter for the ISavings module.
+ *         This vault tracks interest-bearing deposits using a custom price-based mechanism,
+ *         where share value increases over time as interest accrues.
+ *
+ * @dev The vault mitigates dilution and price manipulation attacks on empty vaults
+ *      (a known vulnerability in ERC-4626) by using an explicit price model that starts at 1e18,
+ *      instead of relying on the default totalAssets / totalSupply ratio when supply is zero.
+ *
+ *      Interest is recognized through a manual `_accrueInterest()` call, which updates the internal
+ *      price based on newly accrued interest. Withdrawals are protected by a locking mechanism tied
+ *      to `savings.currentTicks()`, preventing premature exits and mitigating manipulation of
+ *      account-based interest shifts enforced by `savings.INTEREST_DELAY()`.
+ */
 contract SavingsVault is ERC4626 {
 	using Math for uint256;
 
@@ -51,12 +66,22 @@ contract SavingsVault is ERC4626 {
 	}
 
 	// ---------------------------------------------------------------------------------------
-	// Locking Mechanism - since interests are shifted and otherwise would cause an exploit on behalf of the depositors
+	// Locking mechanism to prevent premature withdrawals.
+	// Interest is shifted over time, and early exits could lead to exploitation
+	// at the expense of other depositors if not properly gated.
 
+	/**
+	 * @notice Checks whether the vault's funds are unlocked and eligible for withdrawal.
+	 * @dev Compares the current tick with the tick at which the vault's funds become available.
+	 */
 	function isUnlocked() public view returns (bool) {
 		return savings.currentTicks() >= savings.savings(address(this)).ticks;
 	}
 
+	/**
+	 * @notice Returns the estimated time (in seconds) until the vault's funds are unlocked.
+	 * @dev Uses the tick difference and current rate in parts per million (PPM) to compute time remaining.
+	 */
 	function untilUnlocked() public view returns (uint256) {
 		if (isUnlocked()) return 0;
 		uint256 diff = savings.savings(address(this)).ticks - savings.currentTicks();
