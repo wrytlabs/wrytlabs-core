@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Math} from '@openzeppelin/contracts/utils/math/Math.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {ERC4626, ERC20, IERC20} from '@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol';
+import {Ownable2Step, Ownable} from '@openzeppelin/contracts/access/Ownable2Step.sol';
 
 import {ISavings} from './helpers/ISavings.sol';
 
@@ -22,20 +23,22 @@ import {ISavings} from './helpers/ISavings.sol';
  *      to `savings.currentTicks()`, preventing premature exits and mitigating manipulation of
  *      account-based interest shifts enforced by `savings.INTEREST_DELAY()`.
  */
-contract SavingsVault is ERC4626 {
+contract SavingsVault is ERC4626, Ownable2Step {
 	using Math for uint256;
 
 	ISavings public immutable savings;
 	uint256 public totalClaimed;
 
+	event SetReferral(address indexed referrer, uint24 referralFeePPM);
 	event InterestClaimed(uint256 interest, uint256 totalClaimed);
 
 	constructor(
+		address _owner,
 		IERC20 _coin,
 		ISavings _savings,
 		string memory _name,
 		string memory _symbol
-	) ERC4626(_coin) ERC20(_name, _symbol) {
+	) ERC4626(_coin) ERC20(_name, _symbol) Ownable(_owner) {
 		savings = _savings;
 	}
 
@@ -51,11 +54,23 @@ contract SavingsVault is ERC4626 {
 		return savings.savings(address(this));
 	}
 
+	function _interest() internal view returns (uint256) {
+		uint256 interest = savings.accruedInterest(address(this));
+		ISavings.Account memory state = info();
+
+		if (state.referrer != address(0)) {
+			uint256 referralFee = (uint256(interest) * state.referralFeePPM) / 1_000_000;
+			return interest - referralFee;
+		} else {
+			return interest;
+		}
+	}
+
 	// ---------------------------------------------------------------------------------------
 	// Override functions of ERC4626
 
 	function totalAssets() public view override returns (uint256) {
-		return savings.savings(address(this)).saved + savings.accruedInterest(address(this));
+		return savings.savings(address(this)).saved + _interest();
 	}
 
 	function _convertToShares(uint256 assets, Math.Rounding rounding) internal view virtual override returns (uint256) {
@@ -109,13 +124,7 @@ contract SavingsVault is ERC4626 {
 		emit Deposit(caller, receiver, assets, shares);
 	}
 
-	function _withdraw(
-		address caller,
-		address receiver,
-		address owner,
-		uint256 assets,
-		uint256 shares
-	) internal virtual override {
+	function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) internal virtual override {
 		// 3 days in seconds (259200) fits safely in uint40 (max ~1.1e12)
 		if (isUnlocked() == false) revert ISavings.FundsLocked(uint40(untilUnlocked()));
 
@@ -140,8 +149,15 @@ contract SavingsVault is ERC4626 {
 
 	// ---------------------------------------------------------------------------------------
 
+	function setReferral(address referrer, uint24 referralFeePPM) external onlyOwner {
+		savings.save(0, referrer, referralFeePPM);
+		emit SetReferral(referrer, referralFeePPM);
+	}
+
+	// ---------------------------------------------------------------------------------------
+
 	function _accrueInterest() internal {
-		uint256 interest = uint256(savings.accruedInterest(address(this)));
+		uint256 interest = _interest();
 
 		if (interest > 0 && totalSupply() > 0) {
 			totalClaimed += interest;

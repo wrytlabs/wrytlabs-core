@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
-import { formatEther, MaxUint256, parseEther, Signer } from 'ethers';
+import { formatEther, MaxUint256, parseEther, parseUnits, Signer } from 'ethers';
 import { IERC20, ISavings, SavingsVault } from '../typechain';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { evm_increaseTime } from './helper';
@@ -10,6 +10,7 @@ describe('SavingsVault on mainnet fork', function () {
 	let savings: ISavings;
 	let zchf: IERC20;
 
+	let owner: SignerWithAddress;
 	let user: SignerWithAddress;
 	let userZCHF: SignerWithAddress;
 
@@ -21,7 +22,7 @@ describe('SavingsVault on mainnet fork', function () {
 	const depositAmount = parseEther('100');
 
 	before(async () => {
-		[user] = await ethers.getSigners();
+		[user, owner] = await ethers.getSigners();
 
 		// Attach interfaces to mainnet contracts
 		savings = await ethers.getContractAt('ISavings', SAVINGS_ADDRESS);
@@ -29,7 +30,7 @@ describe('SavingsVault on mainnet fork', function () {
 
 		// Deploy your vault, pointing at the mainnet ISavings contract
 		const VaultFactory = await ethers.getContractFactory('SavingsVault');
-		vault = await VaultFactory.deploy(ZCHF_ADDRESS, SAVINGS_ADDRESS, 'SavingsVault', 'svZCHF');
+		vault = await VaultFactory.deploy(owner, ZCHF_ADDRESS, SAVINGS_ADDRESS, 'SavingsVault', 'svZCHF');
 
 		// Approve vault to spend user's ZCHF
 		await zchf.connect(user).approve(vault, MaxUint256);
@@ -92,5 +93,40 @@ describe('SavingsVault on mainnet fork', function () {
 	it('should allow withdrawal after unlock period', async function () {
 		await evm_increaseTime(10 * 24 * 3600);
 		await expect(vault.connect(user).withdraw(depositAmount, user, user)).to.emit(vault, 'Withdraw');
+	});
+
+	it('should set referral', async function () {
+		const before = await vault.price();
+		await vault.connect(owner).setReferral(owner, 250_000);
+		const info = await vault.info();
+		expect(info.referrer).to.be.eq(owner);
+		expect(info.referralFeePPM).to.be.eq(250_000);
+
+		// price will slighly increase e.g. +0.000000095129%
+		const after = await vault.price();
+		expect(after).to.be.greaterThan(before);
+	});
+
+	it('should claim referral fee', async function () {
+		await evm_increaseTime(100 * 24 * 3600);
+
+		await vault.connect(user).deposit(0, user);
+		const afterOwner = await zchf.balanceOf(owner);
+
+		expect(afterOwner).to.be.greaterThan(0);
+	});
+
+	it('should claim calc referral fee', async function () {
+		await evm_increaseTime(100 * 24 * 3600);
+
+		const beforeOwner = await zchf.balanceOf(owner);
+		const interest = await savings['accruedInterest(address)'](vault);
+		await vault.connect(user).redeem(depositAmount, user, user);
+		const afterOwner = await zchf.balanceOf(owner);
+
+		const diff0 = (interest * 250_000n) / 1_000_000n;
+		const diff1 = afterOwner - beforeOwner;
+
+		expect(diff1).to.be.approximately(diff0, parseUnits('1', 12)); // timing issues
 	});
 });
