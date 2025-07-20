@@ -59,8 +59,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 		ISavings.Account memory state = info();
 
 		if (state.referrer != address(0)) {
-			uint256 referralFee = (uint256(interest) * state.referralFeePPM) / 1_000_000;
-			return interest - referralFee;
+			return interest - (interest * state.referralFeePPM) / 1_000_000;
 		} else {
 			return interest;
 		}
@@ -95,7 +94,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 	}
 
 	/**
-	 * @notice Returns the estimated time (in seconds) until the vault's funds are unlocked.
+	 * @notice Returns the time (in seconds) until the vault's funds are unlocked.
 	 * @dev Uses the tick difference and current rate in parts per million (PPM) to compute time remaining.
 	 */
 	function untilUnlocked() public view returns (uint256) {
@@ -161,8 +160,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 
 		if (interest > 0 && totalSupply() > 0) {
 			totalClaimed += interest;
+			emit InterestClaimed(interest, totalClaimed);
 		}
-
-		emit InterestClaimed(interest, totalClaimed);
 	}
 }

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
-import { formatEther, MaxUint256, parseEther, parseUnits, Signer } from 'ethers';
+import { formatEther, MaxUint256, parseEther, parseUnits, Signer, ZeroAddress } from 'ethers';
 import { IERC20, ISavings, SavingsVault } from '../typechain';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { evm_increaseTime } from './helper';
@@ -121,12 +121,43 @@ describe('SavingsVault on mainnet fork', function () {
 
 		const beforeOwner = await zchf.balanceOf(owner);
 		const interest = await savings['accruedInterest(address)'](vault);
-		await vault.connect(user).redeem(depositAmount, user, user);
+		await vault.connect(user).redeem(await vault.balanceOf(user), user, user);
 		const afterOwner = await zchf.balanceOf(owner);
 
 		const diff0 = (interest * 250_000n) / 1_000_000n;
 		const diff1 = afterOwner - beforeOwner;
 
 		expect(diff1).to.be.approximately(diff0, parseUnits('1', 12)); // timing issues
+	});
+
+	it('should claim calc referral fee via totalAssets', async function () {
+		await vault.connect(user).deposit(depositAmount * 10n, user);
+		const beforeTotal = await vault.totalAssets();
+
+		await evm_increaseTime(100 * 24 * 3600);
+		const afterTotal = await vault.totalAssets();
+
+		const beforeOwner = await zchf.balanceOf(owner);
+		const interest = await savings['accruedInterest(address)'](vault);
+		await vault.connect(user).deposit(depositAmount, user);
+		const afterOwner = await zchf.balanceOf(owner);
+
+		const referralInterest = (interest * 250_000n) / 1_000_000n;
+		const diffOwner = afterOwner - beforeOwner;
+		const diffTotal = afterTotal - beforeTotal;
+
+		expect((diffOwner * parseEther('1')) / diffTotal).to.be.approximately(parseEther('1') / 3n, parseUnits('1', 12));
+		expect((referralInterest * parseEther('1')) / diffTotal).to.be.equal(parseEther('1') / 3n);
+	});
+
+	it('should drop referrer', async function () {
+		const zeroAddress = '0x0000000000000000000000000000000000000000';
+		const beforePrice = await vault.price();
+		await vault.connect(owner).setReferral(zeroAddress, 0);
+		const afterPrice = await vault.price();
+
+		expect(afterPrice).to.be.eq(beforePrice);
+		expect((await vault.info()).referrer).to.be.eq(zeroAddress);
+		expect((await vault.info()).referralFeePPM).to.be.eq(0);
 	});
 });
