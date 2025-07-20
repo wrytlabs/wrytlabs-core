@@ -31,10 +31,11 @@ contract SavingsVault is ERC4626 {
 	event InterestClaimed(uint256 interest, uint256 totalClaimed);
 
 	constructor(
+		IERC20 _coin,
 		ISavings _savings,
 		string memory _name,
 		string memory _symbol
-	) ERC4626(IERC20(_savings.zchf())) ERC20(_name, _symbol) {
+	) ERC4626(_coin) ERC20(_name, _symbol) {
 		savings = _savings;
 	}
 
