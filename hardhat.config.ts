@@ -71,14 +71,14 @@ const config: HardhatUserConfig = {
 			initialBaseFeePerGas: 100000000,
 			gasMultiplier: 2,
 		},
-		tenderly: {
-			url: process.env.TENDERLY_RPC_URL,
-			chainId: 42069,
-			gas: 'auto',
-			gasPrice: 'auto',
-			accounts: [wallet.privateKey],
-			timeout: 50_000,
-		},
+		// tenderly: {
+		// 	url: process.env.TENDERLY_RPC_URL,
+		// 	chainId: 42069,
+		// 	gas: 'auto',
+		// 	gasPrice: 'auto',
+		// 	accounts: [wallet.privateKey],
+		// 	timeout: 50_000,
+		// },
 		sepolia: {
 			url: `https://eth-sepolia.g.alchemy.com/v2/${alchemy}`,
 			chainId: 11155111,
