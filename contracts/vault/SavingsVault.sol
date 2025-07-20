@@ -44,18 +44,18 @@ contract SavingsVault is ERC4626, Ownable2Step {
 
 	// ---------------------------------------------------------------------------------------
 
+	/// @notice Returns the current savings account state for this contract
+	/// @dev Uses the external `savings` contract to fetch the account details
+	function info() public view returns (ISavings.Account memory) {
+		return savings.savings(address(this));
+	}
+
 	/// @notice Returns the current price per share of the contract
 	/// @dev If no shares exist, it defaults to 1 ether (implying 1:1 value)
 	function price() public view returns (uint256) {
 		uint256 totalShares = totalSupply();
 		if (totalShares == 0) return 1 ether;
 		return (totalAssets() * 1 ether) / totalShares;
-	}
-
-	/// @notice Returns the current savings account state for this contract
-	/// @dev Uses the external `savings` contract to fetch the account details
-	function info() public view returns (ISavings.Account memory) {
-		return savings.savings(address(this));
 	}
 
 	/// @notice Calculates the accrued interest for this contract, minus referral fee if applicable
@@ -151,16 +151,6 @@ contract SavingsVault is ERC4626, Ownable2Step {
 
 	// ---------------------------------------------------------------------------------------
 
-	/// @notice Sets the referral for this contract's savings account
-	/// @dev Only callable by the contract owner
-	/// @dev The `savings` module enforces that the referral fee does not exceed the 25% (250,000 PPM) maximum
-	function setReferral(address referrer, uint24 referralFeePPM) external onlyOwner {
-		savings.save(0, referrer, referralFeePPM);
-		emit SetReferral(referrer, referralFeePPM);
-	}
-
-	// ---------------------------------------------------------------------------------------
-
 	/// @notice Internal function to accrue and record interest if available
 	/// @dev Retrieves net interest (after referral fee, if any) via `_interest()`
 	/// @dev If there is interest and shares exist, adds it to `totalClaimed` and emits an event
@@ -171,5 +161,15 @@ contract SavingsVault is ERC4626, Ownable2Step {
 			totalClaimed += interest;
 			emit InterestClaimed(interest, totalClaimed);
 		}
+	}
+
+	// ---------------------------------------------------------------------------------------
+
+	/// @notice Sets the referral for this contract's savings account
+	/// @dev Only callable by the contract owner
+	/// @dev The `savings` module enforces that the referral fee does not exceed the 25% (250,000 PPM) maximum
+	function setReferral(address referrer, uint24 referralFeePPM) external onlyOwner {
+		savings.save(0, referrer, referralFeePPM);
+		emit SetReferral(referrer, referralFeePPM);
 	}
 }
