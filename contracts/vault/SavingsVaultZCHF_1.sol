@@ -78,11 +78,11 @@ contract SavingsVaultZCHF_1 is ERC4626, Ownable2Step {
 	}
 
 	function _convertToShares(uint256 assets, Math.Rounding rounding) internal view virtual override returns (uint256) {
-		return (assets * 1 ether) / price();
+		return assets.mulDiv(1 ether, price(), rounding);
 	}
 
 	function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view virtual override returns (uint256) {
-		return (shares * price()) / 1 ether;
+		return shares.mulDiv(price(), 1 ether, rounding);
 	}
 
 	// ---------------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ contract SavingsVaultZCHF_1 is ERC4626, Ownable2Step {
 		if (interest > 0 && totalSupply() > 0) {
 			totalClaimed += interest;
 
-			uint256 shares = _convertToShares(fee, Math.Rounding(0));
+			uint256 shares = convertToShares(fee);
 			if (shares > 0) {
 				referralFeeShares += shares;
 				_mint(referrer, shares);
