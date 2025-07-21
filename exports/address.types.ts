@@ -1,5 +1,5 @@
 import { arbitrum, avalanche, base, gnosis, mainnet, optimism, polygon, sonic } from 'viem/chains';
-import { Address } from 'viem';
+import { Address, Hash } from 'viem';
 
 export type ChainIdMain = typeof mainnet.id;
 
@@ -26,6 +26,9 @@ export type ChainAddressMainnet = {
 	// savings vaults
 	frankencoinSavings: Address;
 	savingsVaultZCHF: Address;
+
+	// morpho market ids
+	marketZCHFSVZCHF: Hash;
 
 	// erc20 tokens
 	usdc: Address;
