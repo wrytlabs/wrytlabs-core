@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
 import { formatEther, MaxUint256, parseEther, parseUnits, Signer, ZeroAddress } from 'ethers';
-import { IERC20, ISavings, SavingsVault } from '../typechain';
+import { IERC20, ISavingsZCHF, SavingsVaultZCHF_1 } from '../typechain';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { evm_increaseTime } from './helper';
 
-describe('SavingsVault on mainnet fork', function () {
-	let vault: SavingsVault;
-	let savings: ISavings;
+describe('SavingsVaultZCHF_1 on mainnet fork', function () {
+	let vault: SavingsVaultZCHF_1;
+	let savings: ISavingsZCHF;
 	let zchf: IERC20;
 
 	let owner: SignerWithAddress;
@@ -25,12 +25,12 @@ describe('SavingsVault on mainnet fork', function () {
 		[user, owner] = await ethers.getSigners();
 
 		// Attach interfaces to mainnet contracts
-		savings = await ethers.getContractAt('ISavings', SAVINGS_ADDRESS);
+		savings = await ethers.getContractAt('ISavingsZCHF', SAVINGS_ADDRESS);
 		zchf = await ethers.getContractAt('IERC20', ZCHF_ADDRESS);
 
-		// Deploy your vault, pointing at the mainnet ISavings contract
-		const VaultFactory = await ethers.getContractFactory('SavingsVault');
-		vault = await VaultFactory.deploy(owner, ZCHF_ADDRESS, SAVINGS_ADDRESS, 'SavingsVault', 'svZCHF');
+		// Deploy your vault, pointing at the mainnet ISavingsZCHF contract
+		const VaultFactory = await ethers.getContractFactory('SavingsVaultZCHF_1');
+		vault = await VaultFactory.deploy(owner, ZCHF_ADDRESS, SAVINGS_ADDRESS, 'SavingsVaultZCHF_1', 'svZCHF');
 
 		// Approve vault to spend user's ZCHF
 		await zchf.connect(user).approve(vault, MaxUint256);
@@ -98,20 +98,19 @@ describe('SavingsVault on mainnet fork', function () {
 	it('should set referral', async function () {
 		const before = await vault.price();
 		await vault.connect(owner).setReferral(owner, 250_000);
-		const info = await vault.info();
-		expect(info.referrer).to.be.eq(owner);
-		expect(info.referralFeePPM).to.be.eq(250_000);
+		expect(await vault.referrer()).to.be.eq(owner);
+		expect(await vault.referralFeePPM()).to.be.eq(250_000);
 
 		// price will slighly increase e.g. +0.000000095129%
 		const after = await vault.price();
-		expect(after).to.be.greaterThan(before);
+		expect(after).to.be.approximately(before, parseUnits('1', 10));
 	});
 
 	it('should claim referral fee', async function () {
 		await evm_increaseTime(100 * 24 * 3600);
 
 		await vault.connect(user).deposit(0, user);
-		const afterOwner = await zchf.balanceOf(owner);
+		const afterOwner = await vault.balanceOf(owner);
 
 		expect(afterOwner).to.be.greaterThan(0);
 	});
@@ -119,13 +118,13 @@ describe('SavingsVault on mainnet fork', function () {
 	it('should claim calc referral fee', async function () {
 		await evm_increaseTime(100 * 24 * 3600);
 
-		const beforeOwner = await zchf.balanceOf(owner);
+		const beforeOwner = await vault.balanceOf(owner);
 		const interest = await savings['accruedInterest(address)'](vault);
 		await vault.connect(user).redeem(await vault.balanceOf(user), user, user);
-		const afterOwner = await zchf.balanceOf(owner);
+		const afterOwner = await vault.balanceOf(owner);
 
 		const diff0 = (interest * 250_000n) / 1_000_000n;
-		const diff1 = afterOwner - beforeOwner;
+		const diff1 = await vault.convertToAssets(afterOwner - beforeOwner);
 
 		expect(diff1).to.be.approximately(diff0, parseUnits('1', 12)); // timing issues
 	});
@@ -137,13 +136,13 @@ describe('SavingsVault on mainnet fork', function () {
 		await evm_increaseTime(100 * 24 * 3600);
 		const afterTotal = await vault.totalAssets();
 
-		const beforeOwner = await zchf.balanceOf(owner);
+		const beforeOwner = await vault.balanceOf(owner);
 		const interest = await savings['accruedInterest(address)'](vault);
 		await vault.connect(user).deposit(depositAmount, user);
-		const afterOwner = await zchf.balanceOf(owner);
+		const afterOwner = await vault.balanceOf(owner);
 
 		const referralInterest = (interest * 250_000n) / 1_000_000n;
-		const diffOwner = afterOwner - beforeOwner;
+		const diffOwner = await vault.convertToAssets(afterOwner - beforeOwner);
 		const diffTotal = afterTotal - beforeTotal;
 
 		expect((diffOwner * parseEther('1')) / diffTotal).to.be.approximately(parseEther('1') / 3n, parseUnits('1', 12));
@@ -157,7 +156,7 @@ describe('SavingsVault on mainnet fork', function () {
 		const afterPrice = await vault.price();
 
 		expect(afterPrice).to.be.eq(beforePrice);
-		expect((await vault.info()).referrer).to.be.eq(zeroAddress);
-		expect((await vault.info()).referralFeePPM).to.be.eq(0);
+		expect(await vault.referrer()).to.be.eq(zeroAddress);
+		expect(await vault.referralFeePPM()).to.be.eq(0);
 	});
 });
