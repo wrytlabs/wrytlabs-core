@@ -18,6 +18,20 @@ export type ChainAddressMainnet = {
 	// identifier
 	chainId: typeof mainnet.id;
 	chainSelector: string;
+
+	// DAOs and owners
+	aragonWrytes: Address;
+	aragonWrytLabs: Address;
+
+	// savings vaults
+	frankencoinSavings: Address;
+	savingsVaultZCHF: Address;
+
+	// erc20 tokens
+	usdc: Address;
+	WETH: Address;
+	cbBTC: Address;
+	zchf: Address;
 };
 
 export type ChainAddressPolygon = {

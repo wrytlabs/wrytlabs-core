@@ -6,11 +6,11 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC4626, ERC20, IERC20} from '@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol';
 import {Ownable2Step, Ownable} from '@openzeppelin/contracts/access/Ownable2Step.sol';
 
-import {ISavings} from './helpers/ISavings.sol';
+import {ISavingsZCHF} from './helpers/ISavingsZCHF.sol';
 
 /**
- * @title SavingsVault
- * @notice ERC-4626-compatible vault adapter for the ISavings module.
+ * @title SavingsVaultZCHF
+ * @notice ERC-4626-compatible vault adapter for the ISavingsZCHF module.
  *         This vault tracks interest-bearing deposits using a custom price-based mechanism,
  *         where share value increases over time as interest accrues.
  *
@@ -23,10 +23,10 @@ import {ISavings} from './helpers/ISavings.sol';
  *      to `savings.currentTicks()`, preventing premature exits and mitigating manipulation of
  *      account-based interest shifts enforced by `savings.INTEREST_DELAY()`.
  */
-contract SavingsVault is ERC4626, Ownable2Step {
+contract SavingsVaultZCHF is ERC4626, Ownable2Step {
 	using Math for uint256;
 
-	ISavings public immutable savings;
+	ISavingsZCHF public immutable savings;
 	uint256 public totalClaimed;
 
 	event SetReferral(address indexed referrer, uint24 referralFeePPM);
@@ -35,7 +35,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 	constructor(
 		address _owner,
 		IERC20 _coin,
-		ISavings _savings,
+		ISavingsZCHF _savings,
 		string memory _name,
 		string memory _symbol
 	) ERC4626(_coin) ERC20(_name, _symbol) Ownable(_owner) {
@@ -46,7 +46,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 
 	/// @notice Returns the current savings account state for this contract
 	/// @dev Uses the external `savings` contract to fetch the account details
-	function info() public view returns (ISavings.Account memory) {
+	function info() public view returns (ISavingsZCHF.Account memory) {
 		return savings.savings(address(this));
 	}
 
@@ -62,7 +62,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 	/// @dev If the account has a referrer, a referral fee is deducted from the interest
 	function _interest() internal view returns (uint256) {
 		uint256 interest = savings.accruedInterest(address(this));
-		ISavings.Account memory state = info();
+		ISavingsZCHF.Account memory state = info();
 
 		if (state.referrer != address(0)) {
 			return interest - (interest * state.referralFeePPM) / 1_000_000;
@@ -128,7 +128,7 @@ contract SavingsVault is ERC4626, Ownable2Step {
 
 	function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) internal virtual override {
 		// 3 days in seconds (259200) fits safely in uint40 (max ~1.1e12)
-		if (isUnlocked() == false) revert ISavings.FundsLocked(uint40(untilUnlocked()));
+		if (isUnlocked() == false) revert ISavingsZCHF.FundsLocked(uint40(untilUnlocked()));
 
 		_accrueInterest();
 
