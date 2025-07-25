@@ -26,9 +26,19 @@ export type ChainAddressMainnet = {
 	// savings vaults
 	frankencoinSavings: Address;
 	savingsVaultZCHF: Address;
+	savingsVaultZCHFMorpho: Address;
+
+	// morpho related
+	morphoBlue: Address;
+	morphoIrm: Address;
+	morphoChainlinkOracleV2Factory: Address;
+	morphoMetaMorphoFactory1_1: Address;
+	morphoPublicAllocator: Address;
+	morphoURD: Address;
 
 	// morpho market ids
 	marketZCHFSVZCHF: Hash;
+	marketZCHFSVZCHFOracle: Address;
 
 	// erc20 tokens
 	usdc: Address;

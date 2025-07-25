@@ -14,9 +14,19 @@ export const ADDRESS: ChainAddressMap = {
 		// savings vaults
 		frankencoinSavings: '0x27d9AD987BdE08a0d083ef7e0e4043C857A17B38',
 		savingsVaultZCHF: '0x637F00cAb9665cB07d91bfB9c6f3fa8faBFEF8BC',
+		savingsVaultZCHFMorpho: '0x2c89f7A92d4668124bC85E56a8d01D6B009e11e8',
+
+		// morpho related
+		morphoBlue: '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb',
+		morphoIrm: '0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC',
+		morphoChainlinkOracleV2Factory: '0x3A7bB36Ee3f3eE32A60e9f2b33c1e5f2E83ad766',
+		morphoMetaMorphoFactory1_1: '0x1897A8997241C1cD4bD0698647e4EB7213535c24',
+		morphoPublicAllocator: '0xfd32fA2ca22c76dD6E550706Ad913FC6CE91c75D',
+		morphoURD: '0x330eefa8a787552DC5cAd3C3cA644844B1E61Ddb',
 
 		// morpho market ids
 		marketZCHFSVZCHF: '0xF93F7E4FEF01B912B261262977FCC30FCD91095D5708732BBE141F4A41778F4D',
+		marketZCHFSVZCHFOracle: '0x8E80Ed322634f7df749710cf26B98dccC4ebd566',
 
 		// erc20 tokens
 		usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
