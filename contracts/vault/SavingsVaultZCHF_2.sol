@@ -20,8 +20,8 @@ import {ISavingsZCHF} from './helpers/ISavingsZCHF.sol';
  *
  *      Interest is recognized through a manual `_accrueInterest()` call, which updates the internal
  *      price based on newly accrued interest. IN THIS VERSION: Withdrawals are NOT protected by a locking mechanism tied
- *      to `savings.currentTicks()`, NOT preventing premature exits and mitigating manipulation of
- *      account-based interest shifts enforced by `savings.INTEREST_DELAY()`. However, allows a DeFi-friendlier approch.
+ *      to `savings.currentTicks()`, allowing for a soft reset of the vault ticks and postponing the accrual of interest
+ *      for up to three days at maximum. This approach, while less restrictive, promotes a more DeFi-friendly design.
  */
 contract SavingsVaultZCHF_2 is ERC4626, Ownable2Step {
 	using Math for uint256;
