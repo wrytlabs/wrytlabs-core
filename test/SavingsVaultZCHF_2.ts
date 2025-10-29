@@ -181,4 +181,28 @@ describe('SavingsVaultZCHF_2 on mainnet fork', function () {
 		// console.log({ infoAfter, ticksAfter, waiting: (infoAfter[1] - ticksAfter) / 30_000n / 3600n });
 		expect((infoAfter[1] - ticksAfter) / 30_000n / 3600n).is.lessThanOrEqual(72n); // aka 3days = 72 hour.
 	});
+
+	it('should increase rate', async function () {
+		const redeemBal = await vault.balanceOf(user);
+		await vault.connect(user).redeem(redeemBal, user, user);
+
+		const depositAsset = parseEther('100000');
+		await vault.connect(user).deposit(depositAsset, user);
+
+		for (let i = 0; i < 365 * 24; i++) {
+			await evm_increaseTime(3600 * 1);
+			await savings.refreshBalance(await vault.getAddress());
+		}
+
+		const shares1 = await vault.balanceOf(user);
+		const assets1 = await vault.convertToAssets(shares1);
+		const yields = (assets1 * parseEther('1')) / depositAsset;
+
+		console.log({
+			depositAsset,
+			shares1,
+			assets1,
+			yields,
+		});
+	});
 });
