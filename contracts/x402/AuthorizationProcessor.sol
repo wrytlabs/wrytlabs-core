@@ -16,6 +16,7 @@ enum OperationKind {
 }
 
 struct Authorization {
+	OperationKind kind;
 	address from;
 	address to;
 	address token;
@@ -23,7 +24,6 @@ struct Authorization {
 	bytes32 nonce;
 	uint256 validAfter;
 	uint256 validBefore;
-	OperationKind kind;
 	bytes signature;
 }
 
@@ -42,7 +42,7 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	mapping(address owner => mapping(address token => uint256 amount)) public balanceOf;
 	mapping(address => mapping(bytes32 => bool)) public nonces;
 
-	bytes32 private constant AUTHORIZATION_TYPEHASH =
+	bytes32 public constant AUTHORIZATION_TYPEHASH =
 		keccak256(
 			'Authorization(address from,address to,address token,uint256 amount,bytes32 nonce,uint256 validAfter,uint256 validBefore,uint8 kind)'
 		);
@@ -50,6 +50,9 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	// ---------------------------------------------------------------------------------------
 
 	event Authorized(address indexed from, address indexed signer, address indexed token, Allowance allowance);
+
+	event AllowanceUsed(address indexed from, address indexed signer, address indexed token, OperationKind kind, uint256 amount);
+	event NonceUsed(address indexed signer, bytes32 nonce);
 
 	event Deposit(address indexed from, address indexed to, address indexed token, uint256 amount, address signer);
 	event Transfer(address indexed from, address indexed to, address indexed token, uint256 amount, address signer);
@@ -77,14 +80,14 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 		bytes32 structHash = keccak256(
 			abi.encode(
 				AUTHORIZATION_TYPEHASH,
+				uint8(auth.kind),
 				auth.from,
 				auth.to,
 				auth.token,
 				auth.amount,
 				auth.nonce,
 				auth.validAfter,
-				auth.validBefore,
-				uint8(auth.kind)
+				auth.validBefore
 			)
 		);
 		bytes32 hash = _hashTypedDataV4(structHash);
@@ -98,7 +101,7 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 		if (block.timestamp > auth.validBefore) revert AuthorizationExpired(auth.validBefore);
 	}
 
-	function getRequiredAllowance(Authorization calldata auth, address signer) public view returns (uint256) {
+	function _getRequiredAllowance(Authorization calldata auth, address signer) internal view returns (uint256) {
 		if (auth.kind == OperationKind.DEPOSIT) return authorized[auth.from][signer][auth.token].deposit;
 		if (auth.kind == OperationKind.TRANSFER) return authorized[auth.from][signer][auth.token].transfer;
 		if (auth.kind == OperationKind.PROCESS) return authorized[auth.from][signer][auth.token].process;
@@ -108,7 +111,7 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 
 	function verifyAllowance(Authorization calldata auth, address signer) public view returns (uint256) {
 		if (auth.from != signer) {
-			uint256 allowance = getRequiredAllowance(auth, signer);
+			uint256 allowance = _getRequiredAllowance(auth, signer);
 			if (allowance < auth.amount) {
 				revert NotAuthorized(auth.from, signer, auth.kind, allowance);
 			}
@@ -120,35 +123,47 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	// ---------------------------------------------------------------------------------------
 
 	// to give authorization to a signer
-	function authorize(address signer, address token, Allowance calldata allowance) external nonReentrant returns (bool) {
+	function authorize(address signer, address token, Allowance calldata allowance) external nonReentrant {
 		_authorize(signer, token, allowance);
 	}
 
-	function authorizeAuth(Authorization calldata auth, address signer) external nonReentrant returns (bool) {
+	function authorizeAuth(Authorization calldata auth, address signer) external nonReentrant {
 		Allowance memory tokenAuth = authorized[msg.sender][signer][auth.token];
-		tokenAuth[auth.kind] += auth.amount;
-		return _authorize(signer, auth.token, tokenAuth);
+
+		if (auth.kind == OperationKind.DEPOSIT) {
+			tokenAuth.deposit += auth.amount;
+		} else if (auth.kind == OperationKind.TRANSFER) {
+			tokenAuth.transfer += auth.amount;
+		} else if (auth.kind == OperationKind.PROCESS) {
+			tokenAuth.process += auth.amount;
+		} else if (auth.kind == OperationKind.CLAIM) {
+			tokenAuth.claim += auth.amount;
+		}
+
+		_authorize(signer, auth.token, tokenAuth);
 	}
 
-	function _authorize(address signer, address token, Allowance calldata allowance) internal returns (bool) {
+	function _authorize(address signer, address token, Allowance memory allowance) internal {
 		authorized[msg.sender][signer][token] = allowance;
 		emit Authorized(msg.sender, signer, token, allowance);
-		return true;
 	}
 
 	// ---------------------------------------------------------------------------------------
 
 	function _consumeAuthorization(Authorization calldata auth, address signer) internal {
 		nonces[signer][auth.nonce] = true;
+		emit NonceUsed(signer, auth.nonce);
 	}
 
 	function _consumeAllowance(Authorization calldata auth, address signer, uint256 reduce) internal {
-		if (auth.amount == 0) return;
+		if (reduce == 0) return;
 
 		if (auth.kind == OperationKind.DEPOSIT) authorized[auth.from][signer][auth.token].deposit -= reduce;
 		else if (auth.kind == OperationKind.TRANSFER) authorized[auth.from][signer][auth.token].transfer -= reduce;
 		else if (auth.kind == OperationKind.PROCESS) authorized[auth.from][signer][auth.token].process -= reduce;
 		else if (auth.kind == OperationKind.CLAIM) authorized[auth.from][signer][auth.token].claim -= reduce;
+
+		emit AllowanceUsed(auth.from, signer, auth.token, auth.kind, reduce);
 	}
 
 	// ---------------------------------------------------------------------------------------
