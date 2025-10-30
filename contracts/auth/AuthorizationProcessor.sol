@@ -53,6 +53,7 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 
 	event AllowanceUsed(address indexed from, address indexed signer, address indexed token, OperationKind kind, uint256 amount);
 	event NonceUsed(address indexed signer, bytes32 nonce);
+	event AuthorizationCanceled(address indexed signer, bytes32 nonce);
 
 	event Deposit(address indexed from, address indexed to, address indexed token, uint256 amount, address signer);
 	event Transfer(address indexed from, address indexed to, address indexed token, uint256 amount, address signer);
@@ -149,6 +150,12 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	}
 
 	// ---------------------------------------------------------------------------------------
+
+	function cancelAuthorization(bytes32 nonce) external {
+		if (nonces[msg.sender][nonce]) error NonceAlreadyUsed(msg.sender, nonce);
+		nonces[msg.sender][nonce] = true;
+		event AuthorizationCanceled(address indexed signer, bytes32 nonce);
+	}
 
 	function _consumeAuthorization(Authorization calldata auth, address signer) internal {
 		nonces[signer][auth.nonce] = true;
