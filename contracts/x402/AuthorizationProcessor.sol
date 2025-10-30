@@ -9,8 +9,8 @@ import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import {EIP712} from '@openzeppelin/contracts/utils/cryptography/EIP712.sol';
 
 enum OperationKind {
-	DEPOSIT,
 	TRANSFER,
+	DEPOSIT,
 	PROCESS,
 	CLAIM
 }
@@ -44,7 +44,7 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 
 	bytes32 public constant AUTHORIZATION_TYPEHASH =
 		keccak256(
-			'Authorization(address from,address to,address token,uint256 amount,bytes32 nonce,uint256 validAfter,uint256 validBefore,uint8 kind)'
+			'Authorization(uint8 kind,address from,address to,address token,uint256 amount,bytes32 nonce,uint256 validAfter,uint256 validBefore)'
 		);
 
 	// ---------------------------------------------------------------------------------------
@@ -102,8 +102,8 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	}
 
 	function _getRequiredAllowance(Authorization calldata auth, address signer) internal view returns (uint256) {
-		if (auth.kind == OperationKind.DEPOSIT) return authorized[auth.from][signer][auth.token].deposit;
 		if (auth.kind == OperationKind.TRANSFER) return authorized[auth.from][signer][auth.token].transfer;
+		if (auth.kind == OperationKind.DEPOSIT) return authorized[auth.from][signer][auth.token].deposit;
 		if (auth.kind == OperationKind.PROCESS) return authorized[auth.from][signer][auth.token].process;
 		if (auth.kind == OperationKind.CLAIM) return authorized[auth.from][signer][auth.token].claim;
 		return 0;
@@ -130,10 +130,10 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	function authorizeAuth(Authorization calldata auth, address signer) external nonReentrant {
 		Allowance memory tokenAuth = authorized[msg.sender][signer][auth.token];
 
-		if (auth.kind == OperationKind.DEPOSIT) {
-			tokenAuth.deposit += auth.amount;
-		} else if (auth.kind == OperationKind.TRANSFER) {
+		if (auth.kind == OperationKind.TRANSFER) {
 			tokenAuth.transfer += auth.amount;
+		} else if (auth.kind == OperationKind.DEPOSIT) {
+			tokenAuth.deposit += auth.amount;
 		} else if (auth.kind == OperationKind.PROCESS) {
 			tokenAuth.process += auth.amount;
 		} else if (auth.kind == OperationKind.CLAIM) {
@@ -158,8 +158,8 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	function _consumeAllowance(Authorization calldata auth, address signer, uint256 reduce) internal {
 		if (reduce == 0) return;
 
-		if (auth.kind == OperationKind.DEPOSIT) authorized[auth.from][signer][auth.token].deposit -= reduce;
-		else if (auth.kind == OperationKind.TRANSFER) authorized[auth.from][signer][auth.token].transfer -= reduce;
+		if (auth.kind == OperationKind.TRANSFER) authorized[auth.from][signer][auth.token].transfer -= reduce;
+		else if (auth.kind == OperationKind.DEPOSIT) authorized[auth.from][signer][auth.token].deposit -= reduce;
 		else if (auth.kind == OperationKind.PROCESS) authorized[auth.from][signer][auth.token].process -= reduce;
 		else if (auth.kind == OperationKind.CLAIM) authorized[auth.from][signer][auth.token].claim -= reduce;
 
@@ -168,15 +168,15 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 
 	// ---------------------------------------------------------------------------------------
 
+	function _executeTransfer(Authorization calldata auth, address signer) internal {
+		IERC20(auth.token).safeTransferFrom(auth.from, auth.to, auth.amount);
+		emit Transfer(auth.from, auth.to, auth.token, auth.amount, signer);
+	}
+
 	function _executeDeposit(Authorization calldata auth, address signer) internal {
 		IERC20(auth.token).safeTransferFrom(auth.from, address(this), auth.amount);
 		balanceOf[auth.to][auth.token] += auth.amount;
 		emit Deposit(auth.from, auth.to, auth.token, auth.amount, signer);
-	}
-
-	function _executeTransfer(Authorization calldata auth, address signer) internal {
-		IERC20(auth.token).safeTransferFrom(auth.from, auth.to, auth.amount);
-		emit Transfer(auth.from, auth.to, auth.token, auth.amount, signer);
 	}
 
 	function _executeProcess(Authorization calldata auth, address signer) internal {
@@ -206,10 +206,10 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 		_consumeAllowance(auth, signer, reduceAllowance);
 		_consumeAuthorization(auth, signer);
 
-		if (auth.kind == OperationKind.DEPOSIT) {
-			_executeDeposit(auth, signer);
-		} else if (auth.kind == OperationKind.TRANSFER) {
+		if (auth.kind == OperationKind.TRANSFER) {
 			_executeTransfer(auth, signer);
+		} else if (auth.kind == OperationKind.DEPOSIT) {
+			_executeDeposit(auth, signer);
 		} else if (auth.kind == OperationKind.PROCESS) {
 			_executeProcess(auth, signer);
 		} else if (auth.kind == OperationKind.CLAIM) {
