@@ -152,9 +152,9 @@ contract AuthorizationProcessor is EIP712, ReentrancyGuard {
 	// ---------------------------------------------------------------------------------------
 
 	function cancelAuthorization(bytes32 nonce) external {
-		if (nonces[msg.sender][nonce]) error NonceAlreadyUsed(msg.sender, nonce);
+		if (nonces[msg.sender][nonce]) revert NonceAlreadyUsed(msg.sender, nonce);
 		nonces[msg.sender][nonce] = true;
-		event AuthorizationCanceled(address indexed signer, bytes32 nonce);
+		emit AuthorizationCanceled(msg.sender, nonce);
 	}
 
 	function _consumeAuthorization(Authorization calldata auth, address signer) internal {
