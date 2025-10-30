@@ -490,13 +490,13 @@ describe('AuthorizationProcessor', function () {
 				],
 			};
 
-			// Deposit funds for user1
+			// Deposit funds for owner (to create internal balance)
 			await usdc.connect(owner).approve(await authProcessor.getAddress(), DEPOSIT_AMOUNT);
 
 			const depositAuth = {
 				kind: 1, // DEPOSIT
-				from: user1Address,
-				to: user1Address,
+				from: ownerAddress,
+				to: ownerAddress,
 				token: USDC_ADDRESS,
 				amount: DEPOSIT_AMOUNT,
 				nonce: ethers.randomBytes(32),
@@ -504,10 +504,10 @@ describe('AuthorizationProcessor', function () {
 				validBefore: (await ethers.provider.getBlock('latest'))!.timestamp + 3600,
 			};
 
-			const depositSig = await signer.signTypedData(domain, types, depositAuth);
+			const depositSig = await owner.signTypedData(domain, types, depositAuth);
 			await authProcessor.connect(facilitator).executeWithAuthorization({ ...depositAuth, signature: depositSig });
 
-			// Authorize facilitator for claims
+			// Authorize signer for claims
 			const allowance = {
 				deposit: DEPOSIT_AMOUNT,
 				transfer: TRANSFER_AMOUNT,
@@ -533,11 +533,11 @@ describe('AuthorizationProcessor', function () {
 				validBefore,
 			};
 
-			const signature = await facilitator.signTypedData(domain, types, authorization);
+			const signature = await signer.signTypedData(domain, types, authorization);
 			const authWithSig = { ...authorization, signature };
 
 			const initialInternalBalance = await authProcessor.balanceOf(ownerAddress, USDC_ADDRESS);
-			const initialExternalBalance = await usdc.balanceOf(ownerAddress);
+			const initialExternalBalance = await usdc.balanceOf(user1Address);
 
 			await expect(authProcessor.connect(facilitator).executeWithAuthorization(authWithSig))
 				.to.emit(authProcessor, 'Claim')
@@ -548,7 +548,7 @@ describe('AuthorizationProcessor', function () {
 			expect(initialInternalBalance - finalInternalBalance).to.equal(TRANSFER_AMOUNT);
 
 			// Check external balance increased
-			const finalExternalBalance = await usdc.balanceOf(ownerAddress);
+			const finalExternalBalance = await usdc.balanceOf(user1Address);
 			expect(finalExternalBalance - initialExternalBalance).to.equal(TRANSFER_AMOUNT);
 
 			// Check allowance was decreased
@@ -572,27 +572,36 @@ describe('AuthorizationProcessor', function () {
 				validBefore,
 			};
 
-			// User1 signs their own transaction
-			const signature = await signer.signTypedData(domain, types, authorization);
+			// Owner signs their own transaction (self-operation)
+			const signature = await owner.signTypedData(domain, types, authorization);
 			const authWithSig = { ...authorization, signature };
 
 			const initialInternalBalance = await authProcessor.balanceOf(ownerAddress, USDC_ADDRESS);
-			const initialExternalBalance = await usdc.balanceOf(ownerAddress);
+			const initialExternalBalance = await usdc.balanceOf(user1Address);
 
 			await expect(authProcessor.connect(facilitator).executeWithAuthorization(authWithSig))
 				.to.emit(authProcessor, 'Claim')
-				.withArgs(ownerAddress, user1Address, USDC_ADDRESS, TRANSFER_AMOUNT, user1Address);
+				.withArgs(ownerAddress, user1Address, USDC_ADDRESS, TRANSFER_AMOUNT, ownerAddress);
 
 			// Check internal balance decreased
 			const finalInternalBalance = await authProcessor.balanceOf(ownerAddress, USDC_ADDRESS);
 			expect(initialInternalBalance - finalInternalBalance).to.equal(TRANSFER_AMOUNT);
 
 			// Check external balance increased
-			const finalExternalBalance = await usdc.balanceOf(ownerAddress);
+			const finalExternalBalance = await usdc.balanceOf(user1Address);
 			expect(finalExternalBalance - initialExternalBalance).to.equal(TRANSFER_AMOUNT);
 		});
 
 		it('should reject claim with insufficient internal balance', async function () {
+			// First authorize signer
+			const allowance = {
+				deposit: DEPOSIT_AMOUNT,
+				transfer: TRANSFER_AMOUNT,
+				process: TRANSFER_AMOUNT,
+				claim: DEPOSIT_AMOUNT * 3n, // Enough allowance but insufficient balance
+			};
+			await authProcessor.connect(owner).authorize(signerAddress, USDC_ADDRESS, allowance);
+
 			const nonce = ethers.randomBytes(32);
 			const validAfter = (await ethers.provider.getBlock('latest'))!.timestamp;
 			const validBefore = validAfter + 3600;
@@ -653,8 +662,8 @@ describe('AuthorizationProcessor', function () {
 			const auths = [
 				{
 					kind: 1, // DEPOSIT
-					from: user1Address,
-					to: user1Address,
+					from: ownerAddress,
+					to: ownerAddress,
 					token: USDC_ADDRESS,
 					amount: DEPOSIT_AMOUNT,
 					nonce: ethers.randomBytes(32),
@@ -663,8 +672,8 @@ describe('AuthorizationProcessor', function () {
 				},
 				{
 					kind: 2, // PROCESS
-					from: user1Address,
-					to: signerAddress,
+					from: ownerAddress,
+					to: user1Address,
 					token: USDC_ADDRESS,
 					amount: TRANSFER_AMOUNT,
 					nonce: ethers.randomBytes(32),
@@ -676,22 +685,22 @@ describe('AuthorizationProcessor', function () {
 			const authsWithSigs = await Promise.all(
 				auths.map(async (auth) => ({
 					...auth,
-					signature: await signer.signTypedData(domain, types, auth),
+					signature: await owner.signTypedData(domain, types, auth),
 				}))
 			);
 
-			const initialUser2Balance = await authProcessor.balanceOf(user1Address, USDC_ADDRESS);
+			const initialUser1Balance = await authProcessor.balanceOf(user1Address, USDC_ADDRESS);
 
-			await expect(authProcessor.connect(user1).batchExecute(authsWithSigs))
+			await expect(authProcessor.connect(facilitator).batchExecute(authsWithSigs))
 				.to.emit(authProcessor, 'Deposit')
 				.and.to.emit(authProcessor, 'Process');
 
 			// Check final state
-			const finalUser1Balance = await authProcessor.balanceOf(ownerAddress, USDC_ADDRESS);
-			const finalUser2Balance = await authProcessor.balanceOf(user1Address, USDC_ADDRESS);
+			const finalOwnerBalance = await authProcessor.balanceOf(ownerAddress, USDC_ADDRESS);
+			const finalUser1Balance = await authProcessor.balanceOf(user1Address, USDC_ADDRESS);
 
-			expect(finalUser1Balance).to.equal(DEPOSIT_AMOUNT - TRANSFER_AMOUNT);
-			expect(finalUser2Balance - initialUser2Balance).to.equal(TRANSFER_AMOUNT);
+			expect(finalOwnerBalance).to.equal(DEPOSIT_AMOUNT - TRANSFER_AMOUNT);
+			expect(finalUser1Balance - initialUser1Balance).to.equal(TRANSFER_AMOUNT);
 		});
 	});
 
@@ -774,6 +783,15 @@ describe('AuthorizationProcessor', function () {
 		});
 
 		it('should reject reused nonces', async function () {
+			// First authorize signer
+			const allowance = {
+				deposit: DEPOSIT_AMOUNT * 2n,
+				transfer: TRANSFER_AMOUNT,
+				process: TRANSFER_AMOUNT,
+				claim: TRANSFER_AMOUNT,
+			};
+			await authProcessor.connect(owner).authorize(signerAddress, USDC_ADDRESS, allowance);
+
 			const nonce = ethers.randomBytes(32);
 			const validAfter = (await ethers.provider.getBlock('latest'))!.timestamp;
 			const validBefore = validAfter + 3600;
@@ -821,7 +839,7 @@ describe('AuthorizationProcessor', function () {
 				validBefore,
 			};
 
-			const signature = await facilitator.signTypedData(domain, types, authorization);
+			const signature = await signer.signTypedData(domain, types, authorization);
 			const authWithSig = { ...authorization, signature };
 
 			await expect(authProcessor.connect(facilitator).executeWithAuthorization(authWithSig)).to.be.revertedWithCustomError(
@@ -831,6 +849,15 @@ describe('AuthorizationProcessor', function () {
 		});
 
 		it('should reject insufficient balance for PROCESS operation', async function () {
+			// First authorize signer
+			const allowance = {
+				deposit: DEPOSIT_AMOUNT,
+				transfer: TRANSFER_AMOUNT,
+				process: DEPOSIT_AMOUNT * 10n, // Enough allowance but insufficient balance
+				claim: TRANSFER_AMOUNT,
+			};
+			await authProcessor.connect(owner).authorize(signerAddress, USDC_ADDRESS, allowance);
+
 			const nonce = ethers.randomBytes(32);
 			const validAfter = (await ethers.provider.getBlock('latest'))!.timestamp;
 			const validBefore = validAfter + 3600;
@@ -900,14 +927,14 @@ describe('AuthorizationProcessor', function () {
 				validBefore,
 			};
 
-			const signature = await facilitator.signTypedData(domain, types, authorization);
+			const signature = await signer.signTypedData(domain, types, authorization);
 			const authWithSig = { ...authorization, signature };
 
 			await usdc.connect(owner).approve(await authProcessor.getAddress(), DEPOSIT_AMOUNT);
 
 			await expect(authProcessor.connect(facilitator).executeWithAuthorization(authWithSig))
 				.to.emit(authProcessor, 'AllowanceUsed')
-				.withArgs(ownerAddress, user1Address, USDC_ADDRESS, 1, DEPOSIT_AMOUNT) // 1 = DEPOSIT
+				.withArgs(ownerAddress, signerAddress, USDC_ADDRESS, 1, DEPOSIT_AMOUNT) // 1 = DEPOSIT
 				.to.emit(authProcessor, 'NonceUsed')
 				.withArgs(signerAddress, nonce);
 		});
@@ -935,9 +962,18 @@ describe('AuthorizationProcessor', function () {
 
 			const initialBalance = await authProcessor.balanceOf(user1Address, USDC_ADDRESS);
 
+			// Need to authorize signer first for this test to work
+			const allowance = {
+				deposit: DEPOSIT_AMOUNT,
+				transfer: TRANSFER_AMOUNT,
+				process: TRANSFER_AMOUNT,
+				claim: TRANSFER_AMOUNT,
+			};
+			await authProcessor.connect(owner).authorize(signerAddress, USDC_ADDRESS, allowance);
+
 			await expect(authProcessor.connect(facilitator).executeWithAuthorization(authWithSig))
 				.to.emit(authProcessor, 'Deposit')
-				.withArgs(ownerAddress, user1Address, USDC_ADDRESS, DEPOSIT_AMOUNT, user1Address);
+				.withArgs(ownerAddress, user1Address, USDC_ADDRESS, DEPOSIT_AMOUNT, signerAddress);
 
 			// Verify the deposit worked
 			const finalBalance = await authProcessor.balanceOf(user1Address, USDC_ADDRESS);
