@@ -37,19 +37,19 @@ contract FlashloanOrchestrator is ReentrancyGuard, IMorphoFlashLoanCallback, IFl
 	uint256[] public amounts;
 
 	/// @notice Token used for flashloan
-	address flashToken;
+	address public flashToken;
 
 	/// @notice Amount borrowed via flashloan
-	uint256 flashAmount;
+	uint256 public flashAmount;
 
 	/// @notice Current action being executed (for error tracking)
-	uint8 actionIndex;
+	uint8 public actionIndex;
 
 	/// @notice Array of actions to execute during flashloan
 	Action[] public actionData;
 
 	/// @notice Results from executed actions
-	bytes[] actionResult;
+	bytes[] public actionResult;
 
 	/// @notice Initializes the FlashloanOrchestrator with Morpho protocol
 	/// @param _morpho Address of the Morpho protocol contract
@@ -121,7 +121,7 @@ contract FlashloanOrchestrator is ReentrancyGuard, IMorphoFlashLoanCallback, IFl
 
 		// Backup action results before clearing state
 		bytes[] memory results = actionResult;
-		
+
 		// Clear state variables for security and gas optimization
 		clearVars();
 
@@ -182,7 +182,7 @@ contract FlashloanOrchestrator is ReentrancyGuard, IMorphoFlashLoanCallback, IFl
 			}
 
 			// Emit event for successful action execution
-			emit Executed(action.target);
+			emit Executed(sender, action.target);
 
 			// Reset all token allowances for security
 			for (uint8 i = 0; i < tokens.length; i++) {
