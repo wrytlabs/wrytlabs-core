@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
 import { formatEther, MaxUint256, parseEther, parseUnits, Signer, ZeroAddress, keccak256, solidityPacked } from 'ethers';
-import { FlashloanOrchestrator, FlashloanHook_Savings, IERC20, IMorpho, SavingsVaultZCHF } from '../typechain';
+import { FlashloanOrchestrator, FlashloanHook_SavingsVaultZCHF, IERC20, IMorpho, SavingsVaultZCHF } from '../typechain';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { evm_increaseTime } from './helper';
 import { ADDRESS } from '../exports/address.config';
 
 describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () {
 	let orchestrator: FlashloanOrchestrator;
-	let savingsHook: FlashloanHook_Savings;
+	let savingsHook: FlashloanHook_SavingsVaultZCHF;
 	let morpho: IMorpho;
 	let svzchf: SavingsVaultZCHF;
 	let zchf: IERC20;
@@ -53,12 +53,12 @@ describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () 
 			console.log('✅ FlashloanOrchestrator deployed at:', await orchestrator.getAddress());
 		});
 
-		it('Should deploy FlashloanHook_Savings successfully', async () => {
-			const HookFactory = await ethers.getContractFactory('FlashloanHook_Savings');
+		it('Should deploy FlashloanHook_SavingsVaultZCHF successfully', async () => {
+			const HookFactory = await ethers.getContractFactory('FlashloanHook_SavingsVaultZCHF');
 			savingsHook = await HookFactory.deploy(await orchestrator.getAddress(), MORPHO_BLUE, SAVINGS_VAULT_ZCHF, MARKET_ID);
 
 			expect(await savingsHook.getAddress()).to.not.equal(ZeroAddress);
-			console.log('✅ FlashloanHook_Savings deployed at:', await savingsHook.getAddress());
+			console.log('✅ FlashloanHook_SavingsVaultZCHF deployed at:', await savingsHook.getAddress());
 		});
 
 		it('Should verify hook is properly connected to orchestrator', async () => {

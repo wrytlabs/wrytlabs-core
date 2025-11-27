@@ -12,7 +12,7 @@ import {SavingsVaultZCHF} from '../vault/SavingsVaultZCHF.sol';
 import {IFlashloanHook} from './IFlashloanHook.sol';
 import {IFlashloanOrchestrator} from './IFlashloanOrchestrator.sol';
 
-contract FlashloanHook_Savings is IFlashloanHook {
+contract FlashloanHook_SavingsVaultZCHF is IFlashloanHook {
 	using Math for uint256;
 	using SharesMathLib for uint256;
 	using SafeERC20 for IERC20;
