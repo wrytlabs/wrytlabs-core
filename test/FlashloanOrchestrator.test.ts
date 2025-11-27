@@ -3,6 +3,7 @@ import { ethers, network } from 'hardhat';
 import { formatEther, MaxUint256, parseEther, parseUnits, Signer, ZeroAddress, keccak256, solidityPacked } from 'ethers';
 import { FlashloanOrchestrator, FlashloanHook_Savings, IERC20, IMorpho, SavingsVaultZCHF } from '../typechain';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
+import { evm_increaseTime } from './helper';
 import { ADDRESS } from '../exports/address.config';
 
 describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () {
@@ -14,6 +15,7 @@ describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () 
 
 	let owner: SignerWithAddress;
 	let user: SignerWithAddress;
+	let positionUser: SignerWithAddress;
 	let whale: SignerWithAddress;
 
 	// Use addresses from config
@@ -21,14 +23,14 @@ describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () 
 	const SAVINGS_VAULT_ZCHF = ADDRESS[1].savingsVaultZCHF;
 	const ZCHF_ADDRESS = ADDRESS[1].zchf;
 	const MARKET_ID = ADDRESS[1].marketZCHFSVZCHF;
-	const WHALE_ADDRESS = '0x5a57dD9C623e1403AF1D810673183D89724a4e0c'; // ZCHF whale
+	const WHALE_ADDRESS = '0x9642b23Ed1E01Df1092B92641051881a322F5D4E'; // ZCHF whale
 
 	const flashAmount = parseEther('1000'); // 1000 ZCHF
 	const userAmount = parseEther('100'); // 100 ZCHF
 
 	before(async () => {
 		// Setup signers
-		[owner, user] = await ethers.getSigners();
+		[owner, user, positionUser] = await ethers.getSigners();
 
 		// Get contract instances
 		morpho = await ethers.getContractAt('IMorpho', MORPHO_BLUE);
@@ -96,6 +98,24 @@ describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () 
 
 			// Transfer ZCHF from whale to user
 			await zchf.connect(whale).transfer(user.address, fundAmount);
+			await zchf.connect(whale).transfer(positionUser.address, fundAmount * 2n);
+
+			// Deposit
+			await zchf.connect(whale).approve(await morpho.getAddress(), fundAmount * 5n);
+			const market = await savingsHook.market();
+			await morpho.connect(whale).supply(
+				{
+					loanToken: market.loanToken,
+					collateralToken: market.collateralToken,
+					oracle: market.oracle,
+					irm: market.irm,
+					lltv: market.lltv,
+				},
+				fundAmount,
+				0n,
+				whale.address,
+				'0x'
+			);
 
 			const userBalance = await zchf.balanceOf(user.address);
 			expect(userBalance).to.be.gte(fundAmount);
@@ -272,6 +292,384 @@ describe('FlashloanOrchestrator with Savings Hook on mainnet fork', function () 
 			expect(balance).to.equal(parseEther('0.1'));
 
 			console.log('✅ Contract can receive ETH');
+		});
+	});
+
+	describe('Complete Opcode Testing', () => {
+		before(async () => {
+			// Approve orchestrator
+			await zchf.connect(positionUser).approve(await orchestrator.getAddress(), MaxUint256);
+
+			// Set Morpho authorization for the hook to act on behalf of user
+			await morpho.connect(positionUser).setAuthorization(await savingsHook.getAddress(), true);
+
+			console.log('👤 Position user funded with', formatEther(await zchf.balanceOf(positionUser.address)), 'ZCHF');
+		});
+
+		describe('Opcode 0: INCREASE_LEVERAGE', () => {
+			it('Should increase user leverage position', async () => {
+				const opcode = 0; // INCREASE_LEVERAGE
+				const hookData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [opcode]);
+
+				const userProvides = parseEther('5000'); // User provides 5k ZCHF
+				const flashLoanAmount = parseEther('2000'); // Flash 2k ZCHF
+
+				const action = {
+					target: await savingsHook.getAddress(),
+					value: 0,
+					data: hookData,
+				};
+
+				// Get initial balances and position
+				const initialZCHF = await zchf.balanceOf(positionUser.address);
+				const initialPosition = await morpho.position(MARKET_ID, positionUser.address);
+
+				console.log('📈 Increase Leverage Operation:');
+				console.log('  User provides:', formatEther(userProvides), 'ZCHF');
+				console.log('  Flash loan:', formatEther(flashLoanAmount), 'ZCHF');
+				console.log('  Initial collateral:', formatEther(initialPosition.collateral));
+				console.log('  Initial borrow:', formatEther(initialPosition.borrowShares));
+
+				// Execute increase leverage
+				const tx = await orchestrator
+					.connect(positionUser)
+					.execute([ZCHF_ADDRESS], [userProvides], ZCHF_ADDRESS, flashLoanAmount, [action]);
+
+				const receipt = await tx.wait();
+				console.log('  Gas used:', receipt?.gasUsed.toString());
+
+				// Check results
+				const finalZCHF = await zchf.balanceOf(positionUser.address);
+				const finalPosition = await morpho.position(MARKET_ID, positionUser.address);
+
+				console.log('  Final collateral:', formatEther(finalPosition.collateral));
+				console.log('  Final borrow:', formatEther(finalPosition.borrowShares));
+				console.log('  ZCHF change:', formatEther(finalZCHF - initialZCHF));
+
+				// Assertions
+				expect(finalPosition.collateral).to.be.gt(initialPosition.collateral); // More collateral
+				expect(finalPosition.borrowShares).to.be.gt(initialPosition.borrowShares); // More debt
+				expect(finalZCHF).to.be.lt(initialZCHF); // Spent user ZCHF
+
+				console.log('✅ Increase leverage successful');
+			});
+		});
+
+		describe('Opcode 1: DECREASE_LEVERAGE', () => {
+			it('Should decrease user leverage position after time delay', async () => {
+				// First, create a position with increase leverage
+				const increaseOpcode = 0;
+				const increaseData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [increaseOpcode]);
+
+				const setupAction = {
+					target: await savingsHook.getAddress(),
+					value: 0,
+					data: increaseData,
+				};
+
+				// Setup position
+				await orchestrator
+					.connect(positionUser)
+					.execute([ZCHF_ADDRESS], [parseEther('5000')], ZCHF_ADDRESS, parseEther('2000'), [setupAction]);
+
+				console.log('📉 Decrease Leverage Operation:');
+				console.log('  Waiting 7 days for vault unlock...');
+
+				// Wait 7 days for vault withdrawal to be possible
+				await evm_increaseTime(7 * 24 * 60 * 60); // 7 days
+
+				// Get position before decrease
+				const beforePosition = await morpho.position(MARKET_ID, positionUser.address);
+				const beforeZCHF = await zchf.balanceOf(positionUser.address);
+
+				console.log('  Position before decrease:');
+				console.log('    Collateral:', formatEther(beforePosition.collateral));
+				console.log('    Borrow:', formatEther(beforePosition.borrowShares));
+
+				// Now decrease leverage
+				const decreaseOpcode = 1; // DECREASE_LEVERAGE
+				const decreaseData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [decreaseOpcode]);
+
+				const decreaseAction = {
+					target: await savingsHook.getAddress(),
+					value: 0,
+					data: decreaseData,
+				};
+
+				// Execute decrease leverage (flash collateral to repay debt)
+				const market = await savingsHook.market();
+				const tx = await orchestrator.connect(positionUser).execute(
+					[], // No user tokens this time
+					[],
+					market.collateralToken, // Flash svZCHF (collateral)
+					parseEther('1000'), // Flash some collateral
+					[decreaseAction]
+				);
+
+				const receipt = await tx.wait();
+				console.log('  Gas used:', receipt?.gasUsed.toString());
+
+				// Check results
+				const afterPosition = await morpho.position(MARKET_ID, positionUser.address);
+				const afterZCHF = await zchf.balanceOf(positionUser.address);
+
+				console.log('  Position after decrease:');
+				console.log('    Collateral:', formatEther(afterPosition.collateral));
+				console.log('    Borrow:', formatEther(afterPosition.borrowShares));
+				console.log('    ZCHF gained:', formatEther(afterZCHF - beforeZCHF));
+
+				// Assertions
+				expect(afterPosition.collateral).to.be.lt(beforePosition.collateral); // Less collateral
+				expect(afterPosition.borrowShares).to.be.lt(beforePosition.borrowShares); // Less debt
+
+				console.log('✅ Decrease leverage successful');
+			});
+		});
+
+		describe('Opcode 2: CLOSE_TO_LOAN', () => {
+			it('Should close position and receive loan token', async () => {
+				// Setup position first
+				const setupOpcode = 0;
+				const setupData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [setupOpcode]);
+
+				await orchestrator
+					.connect(positionUser)
+					.execute([ZCHF_ADDRESS], [parseEther('3000')], ZCHF_ADDRESS, parseEther('1500'), [
+						{ target: await savingsHook.getAddress(), value: 0, data: setupData },
+					]);
+
+				console.log('🔄 Close to Loan Operation:');
+				console.log('  Waiting 7 days for vault unlock...');
+
+				// Wait for vault unlock
+				await evm_increaseTime(7 * 24 * 60 * 60);
+
+				const beforePosition = await morpho.position(MARKET_ID, positionUser.address);
+				const beforeZCHF = await zchf.balanceOf(positionUser.address);
+
+				console.log('  Position before close:');
+				console.log('    Collateral:', formatEther(beforePosition.collateral));
+				console.log('    Borrow:', formatEther(beforePosition.borrowShares));
+
+				// Close position to loan token
+				const closeOpcode = 2; // CLOSE_TO_LOAN
+				const closeData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [closeOpcode]);
+
+				const closeAction = {
+					target: await savingsHook.getAddress(),
+					value: 0,
+					data: closeData,
+				};
+
+				// Flash loan token to repay debt
+				const tx = await orchestrator.connect(positionUser).execute(
+					[],
+					[],
+					ZCHF_ADDRESS, // Flash ZCHF to repay
+					parseEther('20000'), // Flash enough to repay debt
+					[closeAction]
+				);
+
+				const receipt = await tx.wait();
+				console.log('  Gas used:', receipt?.gasUsed.toString());
+
+				// Check results
+				const afterPosition = await morpho.position(MARKET_ID, positionUser.address);
+				const afterZCHF = await zchf.balanceOf(positionUser.address);
+
+				const market = await savingsHook.market();
+				const collateralToken = await ethers.getContractAt('IERC20', market.collateralToken);
+				const afterCollateralBal = await collateralToken.balanceOf(positionUser.address);
+
+				console.log('  Position after close:');
+				console.log('    Collateral:', formatEther(afterPosition.collateral));
+				console.log('    Borrow:', formatEther(afterPosition.borrowShares));
+				console.log('    Final ZCHF:', formatEther(afterZCHF));
+				console.log('    Final Collateral:', formatEther(afterCollateralBal));
+
+				// Assertions
+				expect(afterPosition.collateral).to.equal(0); // No collateral left
+				expect(afterPosition.borrowShares).to.equal(0); // No debt left
+				expect(afterZCHF).to.be.gt(beforeZCHF); // Received equity in ZCHF
+
+				console.log('✅ Close to loan successful');
+			});
+		});
+
+		describe('Opcode 3: CLOSE_TO_COLLATERAL', () => {
+			it('Should close position and receive collateral token', async () => {
+				// Setup position first
+				const setupOpcode = 0;
+				const setupData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [setupOpcode]);
+
+				await orchestrator
+					.connect(positionUser)
+					.execute([ZCHF_ADDRESS], [parseEther('3000')], ZCHF_ADDRESS, parseEther('10000'), [
+						{ target: await savingsHook.getAddress(), value: 0, data: setupData },
+					]);
+
+				console.log('🔄 Close to Collateral Operation:');
+				console.log('  Waiting 7 days for vault unlock...');
+
+				// Wait for vault unlock
+				await evm_increaseTime(7 * 24 * 60 * 60);
+
+				const market = await savingsHook.market();
+				const beforePosition = await morpho.position(MARKET_ID, positionUser.address);
+				const collateralToken = await ethers.getContractAt('IERC20', market.collateralToken);
+				const beforeCollateralBal = await collateralToken.balanceOf(positionUser.address);
+
+				console.log('  Position before close:');
+				console.log('    Collateral:', formatEther(beforePosition.collateral));
+				console.log('    Borrow:', formatEther(beforePosition.borrowShares));
+
+				// Close position to collateral token
+				const closeOpcode = 3; // CLOSE_TO_COLLATERAL
+				const closeData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [closeOpcode]);
+
+				const closeAction = {
+					target: await savingsHook.getAddress(),
+					value: 0,
+					data: closeData,
+				};
+
+				// Flash loan token to repay debt
+				const tx = await orchestrator.connect(positionUser).execute(
+					[],
+					[],
+					ZCHF_ADDRESS, // Flash ZCHF to repay debt
+					parseEther('20000'),
+					[closeAction]
+				);
+
+				const receipt = await tx.wait();
+				console.log('  Gas used:', receipt?.gasUsed.toString());
+
+				// Check results
+				const afterPosition = await morpho.position(MARKET_ID, positionUser.address);
+				const afterZCHF = await zchf.balanceOf(positionUser.address);
+				const afterCollateralBal = await collateralToken.balanceOf(positionUser.address);
+
+				console.log('  Position after close:');
+				console.log('    Collateral:', formatEther(afterPosition.collateral));
+				console.log('    Borrow:', formatEther(afterPosition.borrowShares));
+				console.log('    Collateral token received:', formatEther(afterCollateralBal - beforeCollateralBal));
+				console.log('    Final ZCHF:', formatEther(afterZCHF));
+				console.log('    Final Collateral:', formatEther(afterCollateralBal));
+
+				// Assertions
+				expect(afterPosition.collateral).to.equal(0); // No collateral left
+				expect(afterPosition.borrowShares).to.equal(0); // No debt left
+				expect(afterCollateralBal).to.be.gt(beforeCollateralBal); // Received collateral tokens
+
+				console.log('✅ Close to collateral successful');
+			});
+		});
+
+		describe('Edge Cases and Error Conditions', () => {
+			it('Should revert with invalid opcode', async () => {
+				const invalidOpcode = 99; // Invalid opcode
+				const hookData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [invalidOpcode]);
+
+				const action = {
+					target: await savingsHook.getAddress(),
+					value: 0,
+					data: hookData,
+				};
+
+				await expect(
+					orchestrator
+						.connect(positionUser)
+						.execute([ZCHF_ADDRESS], [parseEther('100')], ZCHF_ADDRESS, parseEther('50'), [action])
+				).to.be.revertedWithCustomError(savingsHook, 'InvalidOpcode');
+
+				console.log('✅ Invalid opcode correctly reverted');
+			});
+
+			// it('Should revert when trying to decrease leverage too soon', async () => {
+			// 	// Setup position
+			// 	const setupOpcode = 0;
+			// 	const setupData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [setupOpcode]);
+
+			// 	await orchestrator
+			// 		.connect(positionUser)
+			// 		.execute([ZCHF_ADDRESS], [parseEther('2000')], ZCHF_ADDRESS, parseEther('1000'), [
+			// 			{ target: await savingsHook.getAddress(), value: 0, data: setupData },
+			// 		]);
+
+			// 	// Try to decrease immediately (should fail due to vault lock)
+			// 	const decreaseOpcode = 1;
+			// 	const decreaseData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [decreaseOpcode]);
+
+			// 	const market = await savingsHook.market();
+			// 	await expect(
+			// 		orchestrator
+			// 			.connect(positionUser)
+			// 			.execute([], [], market.collateralToken, parseEther('500'), [
+			// 				{ target: await savingsHook.getAddress(), value: 0, data: decreaseData },
+			// 			])
+			// 	).to.be.reverted; // Should revert due to vault withdrawal restrictions
+
+			// 	console.log('✅ Early decrease leverage correctly reverted');
+			// });
+		});
+
+		describe('Integration Tests', () => {
+			it('Should perform complete lifecycle: increase -> decrease -> close', async () => {
+				const initialBalance = await zchf.balanceOf(positionUser.address);
+
+				console.log('🔄 Complete Lifecycle Test:');
+				console.log('  Starting balance:', formatEther(initialBalance), 'ZCHF');
+
+				// Step 1: Increase leverage
+				const increaseData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [0]);
+				await orchestrator
+					.connect(positionUser)
+					.execute([ZCHF_ADDRESS], [parseEther('1000')], ZCHF_ADDRESS, parseEther('3000'), [
+						{ target: await savingsHook.getAddress(), value: 0, data: increaseData },
+					]);
+				console.log('  ✅ Increased leverage');
+
+				// Wait for vault unlock
+				console.log('  ⏳ Waiting 7 days...');
+				await evm_increaseTime(7 * 24 * 60 * 60);
+
+				// Step 2: Partial decrease
+				const decreaseData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [1]);
+				const market = await savingsHook.market();
+				await orchestrator
+					.connect(positionUser)
+					.execute([], [], market.collateralToken, parseEther('1000'), [
+						{ target: await savingsHook.getAddress(), value: 0, data: decreaseData },
+					]);
+				console.log('  ✅ Decreased leverage');
+
+				// Step 3: Close position completely
+				const closeData = ethers.AbiCoder.defaultAbiCoder().encode(['uint8'], [2]); // CLOSE_TO_LOAN
+				await orchestrator
+					.connect(positionUser)
+					.execute([], [], ZCHF_ADDRESS, parseEther('10000'), [
+						{ target: await savingsHook.getAddress(), value: 0, data: closeData },
+					]);
+				console.log('  ✅ Closed position');
+
+				// Check final state
+				const finalPosition = await morpho.position(MARKET_ID, positionUser.address);
+				const collateralToken = await ethers.getContractAt('IERC20', market.collateralToken);
+				const afterZCHF = await zchf.balanceOf(positionUser.address);
+				const afterCollateralBal = await collateralToken.balanceOf(positionUser.address);
+
+				console.log('  Position after close:');
+				console.log('    Collateral:', formatEther(finalPosition.collateral));
+				console.log('    Borrow:', formatEther(finalPosition.borrowShares));
+				console.log('    Final ZCHF:', formatEther(afterZCHF));
+				console.log('    Final Collateral:', formatEther(afterCollateralBal));
+
+				expect(finalPosition.collateral).to.equal(0);
+				expect(finalPosition.borrowShares).to.equal(0);
+
+				console.log('✅ Complete lifecycle successful');
+			});
 		});
 	});
 });
