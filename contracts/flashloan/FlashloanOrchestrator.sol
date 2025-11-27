@@ -10,6 +10,7 @@ import {IMorpho, MarketParams, Id, Position, Market} from '../morpho/IMorpho.sol
 import {SharesMathLib} from '../morpho/SharesMathLib.sol';
 import {IMorphoFlashLoanCallback} from '../morpho/IMorphoCallbacks.sol';
 import {IFlashloanOrchestrator, Action} from './IFlashloanOrchestrator.sol';
+import {IFlashloanHook} from './IFlashloanHook.sol';
 
 /// @title FlashloanOrchestrator
 /// @notice Orchestrates complex DeFi operations using Morpho flashloans
@@ -172,14 +173,15 @@ contract FlashloanOrchestrator is ReentrancyGuard, IMorphoFlashLoanCallback, IFl
 				}
 			}
 
-			// Execute the action with the specified value and data
-			(bool success, bytes memory returnData) = action.target.call{value: action.value}(action.data);
-			actionResult[h] = returnData;
+			IFlashloanHook hook = IFlashloanHook(action.target);
 
-			// Revert entire transaction if any action fails
-			if (!success) {
-				revert ExecutionFailed(h);
-			}
+			// // Verify orchestrator address
+			// if (address(hook.orchestrator()) != address(this)) {
+			// 	revert InvalidAddress();
+			// }
+
+			// Execute the action with the specified value and data
+			actionResult[h] = hook.onFlashloanHook{value: action.value}(action.data);
 
 			// Emit event for successful action execution
 			emit Executed(sender, action.target);

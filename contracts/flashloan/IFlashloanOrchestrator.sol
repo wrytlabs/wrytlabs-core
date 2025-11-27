@@ -50,10 +50,6 @@ interface IFlashloanOrchestrator {
 	/// @notice Thrown when an unsupported function is called
 	error UnsupportedFunction();
 
-	/// @notice Thrown when action execution fails
-	/// @param index The index of the failed action
-	error ExecutionFailed(uint8 index);
-
 	// ---------------------------------------------------------------------------------------
 	// State Variable Getters
 	// ---------------------------------------------------------------------------------------
