@@ -59,7 +59,7 @@ contract FlashloanHook_Savings is IFlashloanHook {
 		if (bal > 0) {
 			token.safeTransferFrom(address(orchestrator), address(this), bal);
 		}
-		return (token.balanceOf(address(orchestrator)), token);
+		return (token.balanceOf(address(this)), token);
 	}
 
 	// ---------------------------------------------------------------------------------------

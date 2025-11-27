@@ -64,11 +64,10 @@ const config: HardhatUserConfig = {
 		hardhat: {
 			forking: {
 				url: `https://eth-mainnet.g.alchemy.com/v2/${alchemy}`,
-				blockNumber: 23692601,
+				blockNumber: 23887624,
 			},
 			gas: 'auto',
 			gasPrice: 'auto',
-			initialBaseFeePerGas: 100000000,
 			gasMultiplier: 2,
 		},
 		tenderly: {

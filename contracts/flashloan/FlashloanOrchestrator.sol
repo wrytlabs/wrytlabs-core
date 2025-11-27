@@ -82,7 +82,10 @@ contract FlashloanOrchestrator is ReentrancyGuard, IMorphoFlashLoanCallback, IFl
 		amounts = _amounts;
 		flashToken = _flashToken;
 		flashAmount = _flashAmount;
-		actionData = _actionData;
+
+		for (uint256 i = 0; i < _actionData.length; i++) {
+			actionData.push(Action({target: _actionData[i].target, value: _actionData[i].value, data: _actionData[i].data}));
+		}
 
 		// Initialize action results array
 		actionResult = new bytes[](_actionData.length);
