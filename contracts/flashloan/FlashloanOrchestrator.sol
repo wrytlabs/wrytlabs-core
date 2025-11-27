@@ -175,10 +175,10 @@ contract FlashloanOrchestrator is ReentrancyGuard, IMorphoFlashLoanCallback, IFl
 
 			IFlashloanHook hook = IFlashloanHook(action.target);
 
-			// // Verify orchestrator address
-			// if (address(hook.orchestrator()) != address(this)) {
-			// 	revert InvalidAddress();
-			// }
+			// Verify orchestrator address
+			if (address(hook.orchestrator()) != address(this)) {
+				revert InvalidAddress();
+			}
 
 			// Execute the action with the specified value and data
 			actionResult[h] = hook.onFlashloanHook{value: action.value}(action.data);

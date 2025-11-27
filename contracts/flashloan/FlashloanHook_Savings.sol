@@ -17,11 +17,11 @@ contract FlashloanHook_Savings is IFlashloanHook {
 	using SharesMathLib for uint256;
 	using SafeERC20 for IERC20;
 
-	IFlashloanOrchestrator public orchestrator;
+	IFlashloanOrchestrator public immutable orchestrator;
 
 	IMorpho public immutable morpho;
 	SavingsVaultZCHF public immutable savingsVault;
-	MarketParams public immutable market;
+	MarketParams public market;
 
 	// opcodes
 	uint8 public constant INCREASE_LEVERAGE = 0;
@@ -34,7 +34,8 @@ contract FlashloanHook_Savings is IFlashloanHook {
 	// errors
 	error InvalidOpcode(uint8 given);
 
-	constructor(address _morpho, address _savingsVault, Id _market) {
+	constructor(address _orchestrator, address _morpho, address _savingsVault, Id _market) {
+		orchestrator = IFlashloanOrchestrator(_orchestrator);
 		morpho = IMorpho(_morpho);
 		savingsVault = SavingsVaultZCHF(_savingsVault);
 		market = morpho.idToMarketParams(_market);
@@ -89,8 +90,8 @@ contract FlashloanHook_Savings is IFlashloanHook {
 	// ---------------------------------------------------------------------------------------
 
 	function onFlashloanHook(bytes calldata data) external payable returns (bytes memory) {
-		// set orchestrator
-		orchestrator = IFlashloanOrchestrator(msg.sender);
+		// verify orchestrator
+		if (msg.sender != address(orchestrator)) revert IFlashloanOrchestrator.InvalidAddress();
 
 		// decode
 		uint8 opcode = abi.decode(data, (uint8));
@@ -156,7 +157,6 @@ contract FlashloanHook_Savings is IFlashloanHook {
 			emit Executed(CLOSE_POSITION, flashAmount, p.collateral, amountOut, equity);
 		} else revert InvalidOpcode(opcode);
 
-		// clear up
-		delete orchestrator;
+		return abi.encode(true);
 	}
 }

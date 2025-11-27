@@ -19,8 +19,8 @@ interface IFlashloanOrchestrator {
 	// ---------------------------------------------------------------------------------------
 
 	/// @notice Emitted when an action is successfully executed
-	/// @param action The address of the executed action target
-	event Executed(address indexed sender, address action);
+	/// @param target The address of the executed action target
+	event Executed(address indexed sender, address target);
 
 	// ---------------------------------------------------------------------------------------
 	// Errors
