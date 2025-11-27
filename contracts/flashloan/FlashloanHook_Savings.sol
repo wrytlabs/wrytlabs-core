@@ -26,7 +26,8 @@ contract FlashloanHook_Savings is IFlashloanHook {
 	// opcodes
 	uint8 public constant INCREASE_LEVERAGE = 0;
 	uint8 public constant DECREASE_LEVERAGE = 1;
-	uint8 public constant CLOSE_POSITION = 2;
+	uint8 public constant CLOSE_TO_LOAN = 2;
+	uint8 public constant CLOSE_TO_COLLATERAL = 3;
 
 	// events
 	event Executed(uint8 opcode, uint256 flash, uint256 amountIn, uint256 amountOut, uint256 provided);
@@ -108,7 +109,7 @@ contract FlashloanHook_Savings is IFlashloanHook {
 		uint256 flashAmount = orchestrator.flashAmount();
 
 		if (opcode == INCREASE_LEVERAGE) {
-			// forceApprove and execute swap
+			// forceApprove and execute vault deposit
 			loan.forceApprove(address(savingsVault), loanAmount);
 			uint256 amountOut = savingsVault.deposit(loanAmount, address(this));
 
@@ -120,7 +121,7 @@ contract FlashloanHook_Savings is IFlashloanHook {
 
 			emit Executed(INCREASE_LEVERAGE, flashAmount, loanAmount, amountOut, collateralAmount);
 		} else if (opcode == DECREASE_LEVERAGE) {
-			// forceApprove and execute swap
+			// forceApprove and execute vault redeem
 			collateral.forceApprove(address(savingsVault), collateralAmount);
 			uint256 amountOut = savingsVault.redeem(collateralAmount, address(this), address(this));
 
@@ -132,7 +133,7 @@ contract FlashloanHook_Savings is IFlashloanHook {
 			_withdrawCollateral(flashAmount, sender, address(orchestrator));
 
 			emit Executed(DECREASE_LEVERAGE, flashAmount, collateralAmount, amountOut, repayAmount);
-		} else if (opcode == CLOSE_POSITION) {
+		} else if (opcode == CLOSE_TO_LOAN) {
 			// get infos
 			Id marketId = Id.wrap(getMarketId(market));
 			Position memory p = morpho.position(marketId, sender);
@@ -143,18 +144,50 @@ contract FlashloanHook_Savings is IFlashloanHook {
 			// withdraw collateral
 			_withdrawCollateral(p.collateral, sender, address(this));
 
-			// forceApprove and execute swap
+			// forceApprove and execute vault redeem
 			collateral.forceApprove(address(savingsVault), p.collateral);
 			uint256 amountOut = savingsVault.redeem(p.collateral, address(this), address(this));
-
-			// transfer equity balance
-			uint256 equity = loan.balanceOf(address(this)) - flashAmount;
-			loan.transfer(sender, equity);
 
 			// refund for flashloan repayment
 			loan.transfer(address(orchestrator), flashAmount);
 
-			emit Executed(CLOSE_POSITION, flashAmount, p.collateral, amountOut, equity);
+			// transfer equity balance
+			uint256 equity = loan.balanceOf(address(this));
+			loan.transfer(sender, equity);
+
+			emit Executed(CLOSE_TO_LOAN, flashAmount, p.collateral, amountOut, equity);
+		} else if (opcode == CLOSE_TO_COLLATERAL) {
+			// get infos
+			Id marketId = Id.wrap(getMarketId(market));
+			Position memory p = morpho.position(marketId, sender);
+
+			// repay loan
+			_repayShares(p.borrowShares, sender);
+
+			// withdraw collateral
+			_withdrawCollateral(p.collateral, sender, address(this));
+
+			// balance of loan token
+			uint256 bal = loan.balanceOf(address(this));
+
+			if (bal < flashAmount) {
+				// missing assets, execute vault withdraw
+				savingsVault.withdraw(flashAmount - bal, address(this), address(this));
+			} else if (bal > flashAmount) {
+				// too much assets, approve & execute vault deposit
+				uint256 depositAmount = bal - flashAmount;
+				loan.forceApprove(address(savingsVault), depositAmount);
+				savingsVault.deposit(depositAmount, address(this));
+			}
+
+			// refund for flashloan repayment
+			loan.transfer(address(orchestrator), flashAmount);
+
+			// transfer collateral to sender
+			uint256 remainingCollateral = collateral.balanceOf(address(this));
+			collateral.transfer(sender, remainingCollateral);
+
+			emit Executed(CLOSE_TO_COLLATERAL, flashAmount, p.collateral, bal, remainingCollateral);
 		} else revert InvalidOpcode(opcode);
 
 		return abi.encode(true);
