@@ -149,6 +149,7 @@ const config: HardhatUserConfig = {
 			// @ts-ignore
 			mainnet: etherscan,
 			xdai: etherscan,
+			base: etherscan,
 			tenderly: '',
 			citrea: 'your API key',
 		},
@@ -183,6 +184,14 @@ const config: HardhatUserConfig = {
 				urls: {
 					apiURL: `https://api.etherscan.io/v2/api?chainid=100&apiKey=${etherscan}`,
 					browserURL: 'https://gnosisscan.io',
+				},
+			},
+			{
+				network: 'base',
+				chainId: 8453,
+				urls: {
+					apiURL: `https://api.etherscan.io/v2/api?chainid=8453&apiKey=${etherscan}`,
+					browserURL: 'https://basescan.io',
 				},
 			},
 		],
