@@ -150,6 +150,7 @@ const config: HardhatUserConfig = {
 			mainnet: etherscan,
 			xdai: etherscan,
 			base: etherscan,
+			optimism: etherscan,
 			tenderly: '',
 			citrea: 'your API key',
 		},
@@ -192,6 +193,14 @@ const config: HardhatUserConfig = {
 				urls: {
 					apiURL: `https://api.etherscan.io/v2/api?chainid=8453&apiKey=${etherscan}`,
 					browserURL: 'https://basescan.io',
+				},
+			},
+			{
+				network: 'optimism',
+				chainId: 10,
+				urls: {
+					apiURL: `https://api.etherscan.io/v2/api?chainid=10&apiKey=${etherscan}`,
+					browserURL: 'https://optimistic.etherscan.io/',
 				},
 			},
 		],
